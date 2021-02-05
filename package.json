@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "budo index.js:dist/aframe-physics-system.js -d examples --port 8000 -- -g browserify-shim",
-    "dist": "browserify -g browserify-shim index.js -o dist/aframe-physics-system.js && uglifyjs -c -o dist/aframe-physics-system.min.js -- dist/aframe-physics-system.js",
+    "dist": "browserify -g browserify-shim index.js -o dist/aframe-physics-system.js -p esmify && uglifyjs -c -o dist/aframe-physics-system.min.js -- dist/aframe-physics-system.js",
     "test": "karma start ./tests/karma.conf.js",
     "test:once": "karma start ./tests/karma.conf.js --single-run",
     "test:firefox": "karma start ./tests/karma.conf.js --browsers Firefox",
@@ -41,20 +41,21 @@
   "homepage": "https://github.com/n5ro/aframe-physics-system#readme",
   "dependencies": {
     "ammo-debug-drawer": "^0.1.0",
-    "cannon-es": "^0.9.1",
-    "three-to-ammo": "^0.1.0",
-    "three-to-cannon": "^3.0.2",
-    "webworkify": "^1.4.0"
+    "cannon-es": "^0.19.0",
+    "esmify": "^2.1.1",
+    "three-to-ammo": "^1.0.0",
+    "three-to-cannon": "^4.0.2",
+    "webworkify": "^1.5.0"
   },
   "peerDependencies": {
     "aframe": ">=0.5.0"
   },
   "devDependencies": {
-    "aframe": "^1.1.0",
-    "browserify": "^16.5.1",
+    "aframe": "^1.2.0",
+    "browserify": "^16.5.2",
     "browserify-css": "^0.15.0",
     "browserify-shim": "^3.8.14",
-    "budo": "^11.6.3",
+    "budo": "^11.6.4",
     "chai": "^3.5.0",
     "chai-shallow-deep-equal": "^1.4.6",
     "envify": "^4.1.0",
@@ -68,10 +69,10 @@
     "karma-mocha-reporter": "^2.2.5",
     "karma-sinon-chai": "^1.3.4",
     "mocha": "^6.2.3",
-    "replace": "^1.2.0",
+    "replace": "^1.2.1",
     "sinon": "^2.4.1",
     "sinon-chai": "^2.14.0",
-    "three": "^0.123.0",
+    "three": "^0.128.0",
     "uglify-es": "^3.3.9"
   }
 }
