@@ -64,13 +64,13 @@ var Body = {
         type: mesh2shape.Type[data.shape.toUpperCase()]
       });
 
-      var shape = mesh2shape(this.el.object3D, options);
+      const {shape, offset, orientation} = mesh2shape(this.el.object3D, options);
 
       if (!shape) {
         el.addEventListener('object3dset', this.initBody.bind(this));
         return;
       }
-      this.body.addShape(shape, shape.offset, shape.orientation);
+      this.body.addShape(shape, offset, orientation);
 
       // Show wireframe
       if (this.system.debug) {
