@@ -1,5 +1,4 @@
 /* global Ammo,THREE */
-const AmmoDebugDrawer = require("ammo-debug-drawer");
 const threeToAmmo = require("three-to-ammo");
 const CONSTANTS = require("../../constants"),
   ACTIVATION_STATE = CONSTANTS.ACTIVATION_STATE,

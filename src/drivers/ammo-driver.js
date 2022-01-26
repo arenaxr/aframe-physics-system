@@ -1,5 +1,6 @@
 /* global THREE */
 const Driver = require("./driver");
+const { AmmoDebugDrawer, AmmoDebugConstants } = require("ammo-debug-drawer");
 
 if (typeof window !== 'undefined') {
   window.AmmoModule = window.Ammo;
@@ -35,7 +36,7 @@ AmmoDriver.prototype.init = function(worldConfig) {
     AmmoModule().then(result => {
       Ammo = result;
       this.epsilon = worldConfig.epsilon || EPS;
-      this.debugDrawMode = worldConfig.debugDrawMode || THREE.AmmoDebugConstants.NoDebug;
+      this.debugDrawMode = worldConfig.debugDrawMode || AmmoDebugConstants.NoDebug;
       this.maxSubSteps = worldConfig.maxSubSteps || 4;
       this.fixedTimeStep = worldConfig.fixedTimeStep || 1 / 60;
       this.collisionConfiguration = new Ammo.btDefaultCollisionConfiguration();
@@ -187,7 +188,7 @@ AmmoDriver.prototype.getDebugDrawer = function(scene, options) {
   if (!this.debugDrawer) {
     options = options || {};
     options.debugDrawMode = options.debugDrawMode || this.debugDrawMode;
-    this.debugDrawer = new THREE.AmmoDebugDrawer(scene, this.physicsWorld, options);
+    this.debugDrawer = new AmmoDebugDrawer(scene, this.physicsWorld, options);
   }
   return this.debugDrawer;
 };
