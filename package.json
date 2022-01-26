@@ -39,6 +39,10 @@
     "url": "https://github.com/n5ro/aframe-physics-system/issues"
   },
   "homepage": "https://github.com/n5ro/aframe-physics-system#readme",
+  "overrides": {
+    "super-three": "0.128.0",
+    "three": "npm:super-three@0.128.0"
+  },
   "dependencies": {
     "ammo-debug-drawer": "^0.1.0",
     "cannon-es": "^0.19.0",
@@ -72,7 +76,7 @@
     "replace": "^1.2.1",
     "sinon": "^2.4.1",
     "sinon-chai": "^2.14.0",
-    "three": "^0.128.0",
+    "three": "npm:super-three@0.128.0",
     "uglify-es": "^3.3.9"
   }
 }
