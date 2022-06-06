@@ -14353,7 +14353,7 @@ const _iterateVertices = function () {
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.threeToCannon = exports.ShapeType = void 0;
+exports.threeToCannon = exports.getShapeParameters = exports.ShapeType = void 0;
 
 var _cannonEs = require("cannon-es");
 
@@ -14366,11 +14366,11 @@ var x = function () {
       i,
       r = new _three.Vector3();
 
-  function o() {
+  function s() {
     this.tolerance = -1, this.faces = [], this.newFaces = [], this.assigned = new d(), this.unassigned = new d(), this.vertices = [];
   }
 
-  function s() {
+  function o() {
     this.normal = new _three.Vector3(), this.midpoint = new _three.Vector3(), this.area = 0, this.constant = 0, this.outside = null, this.mark = 0, this.edge = null;
   }
 
@@ -14386,7 +14386,7 @@ var x = function () {
     this.head = null, this.tail = null;
   }
 
-  return Object.assign(o.prototype, {
+  return Object.assign(s.prototype, {
     setFromPoints: function (t) {
       !0 !== Array.isArray(t) && console.error("THREE.ConvexHull: Points parameter is not an array."), t.length < 4 && console.error("THREE.ConvexHull: The algorithm needs at least four points."), this.makeEmpty();
 
@@ -14400,11 +14400,11 @@ var x = function () {
         var n,
             i,
             r,
-            o = t.geometry;
+            s = t.geometry;
 
-        if (void 0 !== o && (o.isGeometry && (o = o.toBufferGeometry ? o.toBufferGeometry() : new _three.BufferGeometry().fromGeometry(o)), o.isBufferGeometry)) {
-          var s = o.attributes.position;
-          if (void 0 !== s) for (n = 0, i = s.count; n < i; n++) (r = new _three.Vector3()).fromBufferAttribute(s, n).applyMatrix4(t.matrixWorld), e.push(r);
+        if (void 0 !== s && (s.isGeometry && (s = s.toBufferGeometry ? s.toBufferGeometry() : new _three.BufferGeometry().fromGeometry(s)), s.isBufferGeometry)) {
+          var o = s.attributes.position;
+          if (void 0 !== o) for (n = 0, i = o.count; n < i; n++) (r = new _three.Vector3()).fromBufferAttribute(o, n).applyMatrix4(t.matrixWorld), e.push(r);
         }
       }), this.setFromPoints(e);
     },
@@ -14414,13 +14414,13 @@ var x = function () {
       return !0;
     },
     intersectRay: function (t, e) {
-      for (var n = this.faces, i = -Infinity, r = Infinity, o = 0, s = n.length; o < s; o++) {
-        var a = n[o],
+      for (var n = this.faces, i = -Infinity, r = Infinity, s = 0, o = n.length; s < o; s++) {
+        var a = n[s],
             u = a.distanceToPoint(t.origin),
-            h = a.normal.dot(t.direction);
-        if (u > 0 && h >= 0) return null;
-        var c = 0 !== h ? -u / h : 0;
-        if (!(c <= 0) && (h > 0 ? r = Math.min(c, r) : i = Math.max(c, i), i > r)) return null;
+            c = a.normal.dot(t.direction);
+        if (u > 0 && c >= 0) return null;
+        var h = 0 !== c ? -u / c : 0;
+        if (!(h <= 0) && (c > 0 ? r = Math.min(h, r) : i = Math.max(h, i), i > r)) return null;
       }
 
       return t.at(-Infinity !== i ? i : r, e), e;
@@ -14461,12 +14461,12 @@ var x = function () {
         var e = this.unassigned.first();
 
         do {
-          for (var n = e.next, i = this.tolerance, r = null, o = 0; o < t.length; o++) {
-            var s = t[o];
+          for (var n = e.next, i = this.tolerance, r = null, s = 0; s < t.length; s++) {
+            var o = t[s];
 
-            if (0 === s.mark) {
-              var a = s.distanceToPoint(e.point);
-              if (a > i && (i = a, r = s), i > 1e3 * this.tolerance) break;
+            if (0 === o.mark) {
+              var a = o.distanceToPoint(e.point);
+              if (a > i && (i = a, r = o), i > 1e3 * this.tolerance) break;
             }
           }
 
@@ -14482,30 +14482,30 @@ var x = function () {
           n,
           i = new _three.Vector3(),
           r = new _three.Vector3(),
-          o = [],
-          s = [];
+          s = [],
+          o = [];
 
-      for (t = 0; t < 3; t++) o[t] = s[t] = this.vertices[0];
+      for (t = 0; t < 3; t++) s[t] = o[t] = this.vertices[0];
 
       for (i.copy(this.vertices[0].point), r.copy(this.vertices[0].point), t = 0, e = this.vertices.length; t < e; t++) {
         var u = this.vertices[t],
-            h = u.point;
+            c = u.point;
 
-        for (n = 0; n < 3; n++) h.getComponent(n) < i.getComponent(n) && (i.setComponent(n, h.getComponent(n)), o[n] = u);
+        for (n = 0; n < 3; n++) c.getComponent(n) < i.getComponent(n) && (i.setComponent(n, c.getComponent(n)), s[n] = u);
 
-        for (n = 0; n < 3; n++) h.getComponent(n) > r.getComponent(n) && (r.setComponent(n, h.getComponent(n)), s[n] = u);
+        for (n = 0; n < 3; n++) c.getComponent(n) > r.getComponent(n) && (r.setComponent(n, c.getComponent(n)), o[n] = u);
       }
 
       return this.tolerance = 3 * Number.EPSILON * (Math.max(Math.abs(i.x), Math.abs(r.x)) + Math.max(Math.abs(i.y), Math.abs(r.y)) + Math.max(Math.abs(i.z), Math.abs(r.z))), {
-        min: o,
-        max: s
+        min: s,
+        max: o
       };
     },
     computeInitialHull: function () {
       void 0 === t && (t = new _three.Line3(), e = new _three.Plane(), n = new _three.Vector3());
       var i,
           r,
-          o,
+          s,
           u,
           l,
           p,
@@ -14515,28 +14515,28 @@ var x = function () {
           g = this.vertices,
           x = this.computeExtremes(),
           v = x.min,
-          w = x.max,
-          y = 0,
-          b = 0;
+          y = x.max,
+          w = 0,
+          E = 0;
 
-      for (p = 0; p < 3; p++) (m = w[p].point.getComponent(p) - v[p].point.getComponent(p)) > y && (y = m, b = p);
+      for (p = 0; p < 3; p++) (m = y[p].point.getComponent(p) - v[p].point.getComponent(p)) > w && (w = m, E = p);
 
-      for (y = 0, t.set((r = v[b]).point, (o = w[b]).point), p = 0, f = this.vertices.length; p < f; p++) (i = g[p]) !== r && i !== o && (t.closestPointToPoint(i.point, !0, n), (m = n.distanceToSquared(i.point)) > y && (y = m, u = i));
+      for (w = 0, t.set((r = v[E]).point, (s = y[E]).point), p = 0, f = this.vertices.length; p < f; p++) (i = g[p]) !== r && i !== s && (t.closestPointToPoint(i.point, !0, n), (m = n.distanceToSquared(i.point)) > w && (w = m, u = i));
 
-      for (y = -1, e.setFromCoplanarPoints(r.point, o.point, u.point), p = 0, f = this.vertices.length; p < f; p++) (i = g[p]) !== r && i !== o && i !== u && (m = Math.abs(e.distanceToPoint(i.point))) > y && (y = m, l = i);
+      for (w = -1, e.setFromCoplanarPoints(r.point, s.point, u.point), p = 0, f = this.vertices.length; p < f; p++) (i = g[p]) !== r && i !== s && i !== u && (m = Math.abs(e.distanceToPoint(i.point))) > w && (w = m, l = i);
 
       var T = [];
-      if (e.distanceToPoint(l.point) < 0) for (T.push(s.create(r, o, u), s.create(l, o, r), s.create(l, u, o), s.create(l, r, u)), p = 0; p < 3; p++) d = (p + 1) % 3, T[p + 1].getEdge(2).setTwin(T[0].getEdge(d)), T[p + 1].getEdge(1).setTwin(T[d + 1].getEdge(0));else for (T.push(s.create(r, u, o), s.create(l, r, o), s.create(l, o, u), s.create(l, u, r)), p = 0; p < 3; p++) d = (p + 1) % 3, T[p + 1].getEdge(2).setTwin(T[0].getEdge((3 - p) % 3)), T[p + 1].getEdge(0).setTwin(T[d + 1].getEdge(1));
+      if (e.distanceToPoint(l.point) < 0) for (T.push(o.create(r, s, u), o.create(l, s, r), o.create(l, u, s), o.create(l, r, u)), p = 0; p < 3; p++) d = (p + 1) % 3, T[p + 1].getEdge(2).setTwin(T[0].getEdge(d)), T[p + 1].getEdge(1).setTwin(T[d + 1].getEdge(0));else for (T.push(o.create(r, u, s), o.create(l, r, s), o.create(l, s, u), o.create(l, u, r)), p = 0; p < 3; p++) d = (p + 1) % 3, T[p + 1].getEdge(2).setTwin(T[0].getEdge((3 - p) % 3)), T[p + 1].getEdge(0).setTwin(T[d + 1].getEdge(1));
 
       for (p = 0; p < 4; p++) this.faces.push(T[p]);
 
-      for (p = 0, f = g.length; p < f; p++) if ((i = g[p]) !== r && i !== o && i !== u && i !== l) {
-        y = this.tolerance;
-        var F = null;
+      for (p = 0, f = g.length; p < f; p++) if ((i = g[p]) !== r && i !== s && i !== u && i !== l) {
+        w = this.tolerance;
+        var b = null;
 
-        for (d = 0; d < 4; d++) (m = this.faces[d].distanceToPoint(i.point)) > y && (y = m, F = this.faces[d]);
+        for (d = 0; d < 4; d++) (m = this.faces[d].distanceToPoint(i.point)) > w && (w = m, b = this.faces[d]);
 
-        null !== F && this.addVertexToFace(i, F);
+        null !== b && this.addVertexToFace(i, b);
       }
 
       return this;
@@ -14569,23 +14569,23 @@ var x = function () {
       this.deleteFaceVertices(n), n.mark = 1, r = null === e ? e = n.getEdge(0) : e.next;
 
       do {
-        var o = r.twin,
-            s = o.face;
-        0 === s.mark && (s.distanceToPoint(t) > this.tolerance ? this.computeHorizon(t, o, s, i) : i.push(r)), r = r.next;
+        var s = r.twin,
+            o = s.face;
+        0 === o.mark && (o.distanceToPoint(t) > this.tolerance ? this.computeHorizon(t, s, o, i) : i.push(r)), r = r.next;
       } while (r !== e);
 
       return this;
     },
     addAdjoiningFace: function (t, e) {
-      var n = s.create(t, e.tail(), e.head());
+      var n = o.create(t, e.tail(), e.head());
       return this.faces.push(n), n.getEdge(-1).setTwin(e.twin), n.getEdge(0);
     },
     addNewFaces: function (t, e) {
       this.newFaces = [];
 
       for (var n = null, i = null, r = 0; r < e.length; r++) {
-        var o = this.addAdjoiningFace(t, e[r]);
-        null === n ? n = o : o.next.setTwin(i), this.newFaces.push(o.face), i = o;
+        var s = this.addAdjoiningFace(t, e[r]);
+        null === n ? n = s : s.next.setTwin(i), this.newFaces.push(s.face), i = s;
       }
 
       return n.next.setTwin(i), this;
@@ -14604,15 +14604,15 @@ var x = function () {
 
       return this.reindexFaces(), this.cleanup(), this;
     }
-  }), Object.assign(s, {
+  }), Object.assign(o, {
     create: function (t, e, n) {
-      var i = new s(),
+      var i = new o(),
           r = new p(t, i),
-          o = new p(e, i),
+          s = new p(e, i),
           a = new p(n, i);
-      return r.next = a.prev = o, o.next = r.prev = a, a.next = o.prev = r, i.edge = r, i.compute();
+      return r.next = a.prev = s, s.next = r.prev = a, a.next = s.prev = r, i.edge = r, i.compute();
     }
-  }), Object.assign(s.prototype, {
+  }), Object.assign(o.prototype, {
     getEdge: function (t) {
       for (var e = this.edge; t > 0;) e = e.next, t--;
 
@@ -14683,14 +14683,14 @@ var x = function () {
     isEmpty: function () {
       return null === this.head;
     }
-  }), o;
+  }), s;
 }();
 
 const v = new _three.Vector3(),
-      w = new _three.Vector3(),
-      y = new _three.Quaternion();
+      y = new _three.Vector3(),
+      w = new _three.Quaternion();
 
-function b(t) {
+function E(t) {
   const e = function (t) {
     const e = [];
     return t.traverse(function (t) {
@@ -14727,10 +14727,10 @@ function b(t) {
 
 function T(t) {
   let e = t.geometry;
-  return e = e.toBufferGeometry ? e.toBufferGeometry() : e.clone(), t.updateMatrixWorld(), t.matrixWorld.decompose(v, y, w), e.scale(w.x, w.y, w.z), e;
+  return e = e.toBufferGeometry ? e.toBufferGeometry() : e.clone(), t.updateMatrixWorld(), t.matrixWorld.decompose(v, w, y), e.scale(y.x, y.y, y.z), e;
 }
 
-function F(t) {
+function b(t) {
   const e = t.attributes.position,
         n = new Float32Array(3 * e.count);
 
@@ -14739,7 +14739,7 @@ function F(t) {
   return n;
 }
 
-function E(t, e) {
+function F(t, e) {
   switch (e) {
     case "x":
       return t.x;
@@ -14759,165 +14759,261 @@ function B(t, e = 1e-4) {
   const n = {},
         i = t.getIndex(),
         r = t.getAttribute("position"),
-        o = i ? i.count : r.count;
-  let s = 0;
+        s = i ? i.count : r.count;
+  let o = 0;
   const a = [],
-        h = [],
-        c = Math.log10(1 / e),
-        l = Math.pow(10, c);
+        c = [],
+        h = Math.log10(1 / e),
+        l = Math.pow(10, h);
 
-  for (let t = 0; t < o; t++) {
+  for (let t = 0; t < s; t++) {
     const e = i ? i.getX(t) : t;
-    let o = "";
-    o += ~~(r.getX(e) * l) + ",", o += ~~(r.getY(e) * l) + ",", o += ~~(r.getZ(e) * l) + ",", o in n ? a.push(n[o]) : (h.push(r.getX(e)), h.push(r.getY(e)), h.push(r.getZ(e)), n[o] = s, a.push(s), s++);
+    let s = "";
+    s += ~~(r.getX(e) * l) + ",", s += ~~(r.getY(e) * l) + ",", s += ~~(r.getZ(e) * l) + ",", s in n ? a.push(n[s]) : (c.push(r.getX(e)), c.push(r.getY(e)), c.push(r.getZ(e)), n[s] = o, a.push(o), o++);
   }
 
-  const p = new _three.BufferAttribute(new Float32Array(h), r.itemSize, r.normalized),
+  const p = new _three.BufferAttribute(new Float32Array(c), r.itemSize, r.normalized),
         d = new _three.BufferGeometry();
   return d.setAttribute("position", p), d.setIndex(a), d;
 }
 
-const M = Math.PI / 2;
-var P;
-exports.ShapeType = P;
+const P = Math.PI / 2;
+var S;
+exports.ShapeType = S;
 !function (t) {
   t.BOX = "Box", t.CYLINDER = "Cylinder", t.SPHERE = "Sphere", t.HULL = "ConvexPolyhedron", t.MESH = "Trimesh";
-}(P || (exports.ShapeType = P = {}));
+}(S || (exports.ShapeType = S = {}));
 
-const S = function (a, u = {}) {
-  let h;
-  if (u.type === P.BOX) return C(a);
-  if (u.type === P.CYLINDER) return function (e, n) {
+const z = function (e, n = {}) {
+  let i;
+  if (n.type === S.BOX) return H(e);
+  if (n.type === S.CYLINDER) return function (e, n) {
     const i = ["x", "y", "z"],
-          o = n.cylinderAxis || "y",
-          s = i.splice(i.indexOf(o), 1) && i,
-          a = new _three.Box3().setFromObject(e);
-    if (!isFinite(a.min.lengthSq())) return null;
-    const u = a.max[o] - a.min[o],
-          h = .5 * Math.max(E(a.max, s[0]) - E(a.min, s[0]), E(a.max, s[1]) - E(a.min, s[1])),
-          c = new _cannonEs.Cylinder(h, h, u, 12);
-    c.radiusTop = h, c.radiusBottom = h, c.height = u, c.numSegments = 12;
-    const l = "y" === o ? M : 0,
-          p = "z" === o ? M : 0;
+          r = n.cylinderAxis || "y",
+          s = i.splice(i.indexOf(r), 1) && i,
+          o = new _three.Box3().setFromObject(e);
+    if (!isFinite(o.min.lengthSq())) return null;
+    const a = o.max[r] - o.min[r],
+          u = .5 * Math.max(F(o.max, s[0]) - F(o.min, s[0]), F(o.max, s[1]) - F(o.min, s[1])),
+          c = "y" === r ? P : 0,
+          h = "z" === r ? P : 0;
     return {
-      shape: c,
-      orientation: new _cannonEs.Quaternion().setFromEuler(l, p, 0, "XYZ").normalize()
+      type: S.CYLINDER,
+      params: {
+        radiusTop: u,
+        radiusBottom: u,
+        height: a,
+        segments: 12
+      },
+      orientation: new _cannonEs.Quaternion().setFromEuler(c, h, 0, "XYZ").normalize()
     };
-  }(a, u);
-  if (u.type === P.SPHERE) return function (t, e) {
+  }(e, n);
+  if (n.type === S.SPHERE) return function (t, e) {
     if (e.sphereRadius) return {
-      shape: new _cannonEs.Sphere(e.sphereRadius)
+      type: S.SPHERE,
+      params: {
+        radius: e.sphereRadius
+      }
     };
-    const n = b(t);
+    const n = E(t);
     return n ? (n.computeBoundingSphere(), {
-      shape: new _cannonEs.Sphere(n.boundingSphere.radius)
+      type: S.SPHERE,
+      params: {
+        radius: n.boundingSphere.radius
+      }
     }) : null;
-  }(a, u);
-  if (u.type === P.HULL) return function (t) {
-    const e = b(t);
+  }(e, n);
+  if (n.type === S.HULL) return function (t) {
+    const e = E(t);
     if (!e) return null;
-    const r = 1e-4;
+    const n = 1e-4;
 
-    for (let t = 0; t < e.attributes.position.count; t++) e.attributes.position.setXYZ(t, e.attributes.position.getX(t) + (Math.random() - .5) * r, e.attributes.position.getY(t) + (Math.random() - .5) * r, e.attributes.position.getZ(t) + (Math.random() - .5) * r);
+    for (let t = 0; t < e.attributes.position.count; t++) e.attributes.position.setXYZ(t, e.attributes.position.getX(t) + (Math.random() - .5) * n, e.attributes.position.getY(t) + (Math.random() - .5) * n, e.attributes.position.getZ(t) + (Math.random() - .5) * n);
 
-    const o = new x().setFromObject(new _three.Mesh(e)).faces,
-          s = [],
-          a = [];
+    const i = new x().setFromObject(new _three.Mesh(e)).faces,
+          r = [],
+          s = [];
+    let o = 0;
 
-    for (let t = 0; t < o.length; t++) {
-      const e = o[t],
-            i = [];
-      a.push(i);
-      let r = e.edge;
+    for (let t = 0; t < i.length; t++) {
+      const e = i[t],
+            n = [];
+      s.push(n);
+      let a = e.edge;
 
       do {
-        const t = r.head().point;
-        s.push(new _cannonEs.Vec3(t.x, t.y, t.z)), i.push(s.length - 1), r = r.next;
-      } while (r !== e.edge);
+        const t = a.head().point;
+        r.push(t.x, t.y, t.z), n.push(o), o++, a = a.next;
+      } while (a !== e.edge);
     }
 
-    return {
-      shape: new _cannonEs.ConvexPolyhedron({
-        vertices: s,
-        faces: a
-      })
+    const a = new Float32Array(r.length);
+    return a.set(r), {
+      type: S.HULL,
+      params: {
+        vertices: a,
+        faces: s
+      }
     };
-  }(a);
-  if (u.type === P.MESH) return h = b(a), h ? function (t) {
-    const e = F(t);
+  }(e);
+  if (n.type === S.MESH) return i = E(e), i ? function (t) {
+    const e = b(t);
     if (!e.length) return null;
-    const n = Object.keys(e).map(Number);
-    return {
-      shape: new _cannonEs.Trimesh(e, n)
-    };
-  }(h) : null;
-  if (u.type) throw new Error(`[CANNON.threeToCannon] Invalid type "${u.type}".`);
-  if (h = b(a), !h) return null;
+    const n = new Uint32Array(e.length);
 
-  switch (h.type) {
+    for (let t = 0; t < e.length; t++) n[t] = t;
+
+    return {
+      type: S.MESH,
+      params: {
+        vertices: e,
+        indices: n
+      }
+    };
+  }(i) : null;
+  if (n.type) throw new Error(`[CANNON.getShapeParameters] Invalid type "${n.type}".`);
+  if (i = E(e), !i) return null;
+
+  switch (i.type) {
     case "BoxGeometry":
     case "BoxBufferGeometry":
-      return z(h);
+      return C(i);
 
     case "CylinderGeometry":
     case "CylinderBufferGeometry":
       return function (e) {
-        const n = e.parameters,
-              i = new _cannonEs.Cylinder(n.radiusTop, n.radiusBottom, n.height, n.radialSegments);
-        return i.radiusTop = n.radiusTop, i.radiusBottom = n.radiusBottom, i.height = n.height, i.numSegments = n.radialSegments, {
-          shape: i,
+        const n = e.parameters;
+        return {
+          type: S.CYLINDER,
+          params: {
+            radiusTop: n.radiusTop,
+            radiusBottom: n.radiusBottom,
+            height: n.height,
+            segments: n.radialSegments
+          },
           orientation: new _cannonEs.Quaternion().setFromEuler(_three.MathUtils.degToRad(-90), 0, 0, "XYZ").normalize()
         };
-      }(h);
+      }(i);
 
     case "PlaneGeometry":
     case "PlaneBufferGeometry":
       return function (t) {
         t.computeBoundingBox();
-        const i = t.boundingBox;
+        const e = t.boundingBox;
         return {
-          shape: new _cannonEs.Box(new _cannonEs.Vec3((i.max.x - i.min.x) / 2 || .1, (i.max.y - i.min.y) / 2 || .1, (i.max.z - i.min.z) / 2 || .1))
+          type: S.BOX,
+          params: {
+            x: (e.max.x - e.min.x) / 2 || .1,
+            y: (e.max.y - e.min.y) / 2 || .1,
+            z: (e.max.z - e.min.z) / 2 || .1
+          }
         };
-      }(h);
+      }(i);
 
     case "SphereGeometry":
     case "SphereBufferGeometry":
       return function (t) {
         return {
-          shape: new _cannonEs.Sphere(t.parameters.radius)
+          type: S.SPHERE,
+          params: {
+            radius: t.parameters.radius
+          }
         };
-      }(h);
+      }(i);
 
     case "TubeGeometry":
     case "BufferGeometry":
-      return C(a);
+      return H(e);
 
     default:
-      return console.warn('Unrecognized geometry: "%s". Using bounding box as shape.', h.type), z(h);
+      return console.warn('Unrecognized geometry: "%s". Using bounding box as shape.', i.type), C(i);
   }
+},
+      M = function (t, a = {}) {
+  const u = z(t, a);
+  if (!u) return null;
+  const {
+    type: c,
+    params: h,
+    offset: l,
+    orientation: p
+  } = u;
+  let f;
+  return f = c === S.BOX ? function (t) {
+    const {
+      x: i,
+      y: r,
+      z: s
+    } = t;
+    return new _cannonEs.Box(new _cannonEs.Vec3(i, r, s));
+  }(h) : c === S.CYLINDER ? function (t) {
+    const {
+      radiusTop: e,
+      radiusBottom: n,
+      height: r,
+      segments: s
+    } = t,
+          o = new _cannonEs.Cylinder(e, n, r, s);
+    return o.radiusTop = n, o.radiusBottom = n, o.height = r, o.numSegments = s, o;
+  }(h) : c === S.SPHERE ? function (t) {
+    return new _cannonEs.Sphere(t.radius);
+  }(h) : c === S.HULL ? function (t) {
+    const {
+      faces: e,
+      vertices: i
+    } = t,
+          r = [];
+
+    for (let t = 0; t < i.length; t += 3) r.push(new _cannonEs.Vec3(i[t], i[t + 1], i[t + 2]));
+
+    return new _cannonEs.ConvexPolyhedron({
+      faces: e,
+      vertices: r
+    });
+  }(h) : function (t) {
+    const {
+      vertices: e,
+      indices: n
+    } = t;
+    return new _cannonEs.Trimesh(e, n);
+  }(h), {
+    shape: f,
+    offset: l,
+    orientation: p
+  };
 };
 
-exports.threeToCannon = S;
+exports.threeToCannon = M;
+exports.getShapeParameters = z;
 
-function z(t) {
-  if (!F(t).length) return null;
+function C(t) {
+  if (!b(t).length) return null;
   t.computeBoundingBox();
-  const i = t.boundingBox;
+  const e = t.boundingBox;
   return {
-    shape: new _cannonEs.Box(new _cannonEs.Vec3((i.max.x - i.min.x) / 2, (i.max.y - i.min.y) / 2, (i.max.z - i.min.z) / 2))
+    type: S.BOX,
+    params: {
+      x: (e.max.x - e.min.x) / 2,
+      y: (e.max.y - e.min.y) / 2,
+      z: (e.max.z - e.min.z) / 2
+    }
   };
 }
 
-function C(t) {
-  const i = t.clone();
-  i.quaternion.set(0, 0, 0, 1), i.updateMatrixWorld();
-  const r = new _three.Box3().setFromObject(i);
-  if (!isFinite(r.min.lengthSq())) return null;
-  const o = new _cannonEs.Box(new _cannonEs.Vec3((r.max.x - r.min.x) / 2, (r.max.y - r.min.y) / 2, (r.max.z - r.min.z) / 2)),
-        s = r.translate(i.position.negate()).getCenter(new _three.Vector3());
+function H(t) {
+  const e = t.clone();
+  e.quaternion.set(0, 0, 0, 1), e.updateMatrixWorld();
+  const i = new _three.Box3().setFromObject(e);
+  if (!isFinite(i.min.lengthSq())) return null;
+  const r = i.translate(e.position.negate()).getCenter(new _three.Vector3());
   return {
-    shape: o,
-    offset: s.lengthSq() ? new _cannonEs.Vec3(s.x, s.y, s.z) : void 0
+    type: S.BOX,
+    params: {
+      x: (i.max.x - i.min.x) / 2,
+      y: (i.max.y - i.min.y) / 2,
+      z: (i.max.z - i.min.z) / 2
+    },
+    offset: r.lengthSq() ? new _cannonEs.Vec3(r.x, r.y, r.z) : void 0
   };
 }
 
