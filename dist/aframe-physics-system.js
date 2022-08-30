@@ -2170,6 +2170,8 @@ class Quaternion {
     target.x = bank;
   }
   /**
+   * Set the quaternion components given Euler angle representation.
+   *
    * @param order The order to apply angles: 'XYZ' or 'YXZ' or any other combination.
    *
    * See {@link https://www.mathworks.com/matlabcentral/fileexchange/20696-function-to-convert-between-dcm-euler-angles-quaternions-and-euler-vectors MathWorks} reference
@@ -10935,7 +10937,8 @@ class Narrowphase {
 
     if (friction > 0) {
       // Create 2 tangent equations
-      const mug = friction * world.gravity.length();
+      // Users may provide a force different from global gravity to use when computing contact friction.
+      const mug = friction * (world.frictionGravity || world.gravity).length();
       let reducedMass = bodyA.invMass + bodyB.invMass;
 
       if (reducedMass > 0) {
@@ -12594,6 +12597,12 @@ class World extends EventTarget {
    */
 
   /**
+   * Gravity to use when approximating the friction max force (mu*mass*gravity).
+   * If undefined, global gravity will be used.
+   * Use to enable friction in a World with a null gravity vector (no gravity).
+   */
+
+  /**
    * The broadphase algorithm to use.
    * @default NaiveBroadphase
    */
@@ -12667,6 +12676,11 @@ class World extends EventTarget {
 
     if (options.gravity) {
       this.gravity.copy(options.gravity);
+    }
+
+    if (options.frictionGravity) {
+      this.frictionGravity = new Vec3();
+      this.frictionGravity.copy(options.frictionGravity);
     }
 
     this.broadphase = options.broadphase !== undefined ? options.broadphase : new NaiveBroadphase();
@@ -14359,278 +14373,645 @@ var _cannonEs = require("cannon-es");
 
 var _three = (typeof window !== "undefined" ? window['THREE'] : typeof global !== "undefined" ? global['THREE'] : null);
 
-var x = function () {
-  var t,
-      e,
-      n,
-      i,
-      r = new _three.Vector3();
+/**
+ * Ported from: https://github.com/maurizzzio/quickhull3d/ by Mauricio Poppe (https://github.com/maurizzzio)
+ */
+var ConvexHull = function () {
+  var Visible = 0;
+  var Deleted = 1;
+  var v1 = new _three.Vector3();
 
-  function s() {
-    this.tolerance = -1, this.faces = [], this.newFaces = [], this.assigned = new d(), this.unassigned = new d(), this.vertices = [];
+  function ConvexHull() {
+    this.tolerance = -1;
+    this.faces = []; // the generated faces of the convex hull
+
+    this.newFaces = []; // this array holds the faces that are generated within a single iteration
+    // the vertex lists work as follows:
+    //
+    // let 'a' and 'b' be 'Face' instances
+    // let 'v' be points wrapped as instance of 'Vertex'
+    //
+    //     [v, v, ..., v, v, v, ...]
+    //      ^             ^
+    //      |             |
+    //  a.outside     b.outside
+    //
+
+    this.assigned = new VertexList();
+    this.unassigned = new VertexList();
+    this.vertices = []; // vertices of the hull (internal representation of given geometry data)
   }
 
-  function o() {
-    this.normal = new _three.Vector3(), this.midpoint = new _three.Vector3(), this.area = 0, this.constant = 0, this.outside = null, this.mark = 0, this.edge = null;
-  }
-
-  function p(t, e) {
-    this.vertex = t, this.prev = null, this.next = null, this.twin = null, this.face = e;
-  }
-
-  function f(t) {
-    this.point = t, this.prev = null, this.next = null, this.face = null;
-  }
-
-  function d() {
-    this.head = null, this.tail = null;
-  }
-
-  return Object.assign(s.prototype, {
-    setFromPoints: function (t) {
-      !0 !== Array.isArray(t) && console.error("THREE.ConvexHull: Points parameter is not an array."), t.length < 4 && console.error("THREE.ConvexHull: The algorithm needs at least four points."), this.makeEmpty();
-
-      for (var e = 0, n = t.length; e < n; e++) this.vertices.push(new f(t[e]));
-
-      return this.compute(), this;
-    },
-    setFromObject: function (t) {
-      var e = [];
-      return t.updateMatrixWorld(!0), t.traverse(function (t) {
-        var n,
-            i,
-            r,
-            s = t.geometry;
-
-        if (void 0 !== s && (s.isGeometry && (s = s.toBufferGeometry ? s.toBufferGeometry() : new _three.BufferGeometry().fromGeometry(s)), s.isBufferGeometry)) {
-          var o = s.attributes.position;
-          if (void 0 !== o) for (n = 0, i = o.count; n < i; n++) (r = new _three.Vector3()).fromBufferAttribute(o, n).applyMatrix4(t.matrixWorld), e.push(r);
-        }
-      }), this.setFromPoints(e);
-    },
-    containsPoint: function (t) {
-      for (var e = this.faces, n = 0, i = e.length; n < i; n++) if (e[n].distanceToPoint(t) > this.tolerance) return !1;
-
-      return !0;
-    },
-    intersectRay: function (t, e) {
-      for (var n = this.faces, i = -Infinity, r = Infinity, s = 0, o = n.length; s < o; s++) {
-        var a = n[s],
-            u = a.distanceToPoint(t.origin),
-            c = a.normal.dot(t.direction);
-        if (u > 0 && c >= 0) return null;
-        var h = 0 !== c ? -u / c : 0;
-        if (!(h <= 0) && (c > 0 ? r = Math.min(h, r) : i = Math.max(h, i), i > r)) return null;
+  Object.assign(ConvexHull.prototype, {
+    setFromPoints: function (points) {
+      if (Array.isArray(points) !== true) {
+        console.error('THREE.ConvexHull: Points parameter is not an array.');
       }
 
-      return t.at(-Infinity !== i ? i : r, e), e;
-    },
-    intersectsRay: function (t) {
-      return null !== this.intersectRay(t, r);
-    },
-    makeEmpty: function () {
-      return this.faces = [], this.vertices = [], this;
-    },
-    addVertexToFace: function (t, e) {
-      return t.face = e, null === e.outside ? this.assigned.append(t) : this.assigned.insertBefore(e.outside, t), e.outside = t, this;
-    },
-    removeVertexFromFace: function (t, e) {
-      return t === e.outside && (e.outside = null !== t.next && t.next.face === e ? t.next : null), this.assigned.remove(t), this;
-    },
-    removeAllVerticesFromFace: function (t) {
-      if (null !== t.outside) {
-        for (var e = t.outside, n = t.outside; null !== n.next && n.next.face === t;) n = n.next;
-
-        return this.assigned.removeSubList(e, n), e.prev = n.next = null, t.outside = null, e;
+      if (points.length < 4) {
+        console.error('THREE.ConvexHull: The algorithm needs at least four points.');
       }
-    },
-    deleteFaceVertices: function (t, e) {
-      var n = this.removeAllVerticesFromFace(t);
-      if (void 0 !== n) if (void 0 === e) this.unassigned.appendChain(n);else {
-        var i = n;
 
-        do {
-          var r = i.next;
-          e.distanceToPoint(i.point) > this.tolerance ? this.addVertexToFace(i, e) : this.unassigned.append(i), i = r;
-        } while (null !== i);
+      this.makeEmpty();
+
+      for (var i = 0, l = points.length; i < l; i++) {
+        this.vertices.push(new VertexNode(points[i]));
       }
+
+      this.compute();
       return this;
     },
-    resolveUnassignedPoints: function (t) {
-      if (!1 === this.unassigned.isEmpty()) {
-        var e = this.unassigned.first();
+    setFromObject: function (object) {
+      var points = [];
+      object.updateMatrixWorld(true);
+      object.traverse(function (node) {
+        var i, l, point;
+        var geometry = node.geometry;
+        if (geometry === undefined) return;
 
-        do {
-          for (var n = e.next, i = this.tolerance, r = null, s = 0; s < t.length; s++) {
-            var o = t[s];
+        if (geometry.isGeometry) {
+          geometry = geometry.toBufferGeometry ? geometry.toBufferGeometry() : new _three.BufferGeometry().fromGeometry(geometry);
+        }
 
-            if (0 === o.mark) {
-              var a = o.distanceToPoint(e.point);
-              if (a > i && (i = a, r = o), i > 1e3 * this.tolerance) break;
+        if (geometry.isBufferGeometry) {
+          var attribute = geometry.attributes.position;
+
+          if (attribute !== undefined) {
+            for (i = 0, l = attribute.count; i < l; i++) {
+              point = new _three.Vector3();
+              point.fromBufferAttribute(attribute, i).applyMatrix4(node.matrixWorld);
+              points.push(point);
             }
           }
+        }
+      });
+      return this.setFromPoints(points);
+    },
+    containsPoint: function (point) {
+      var faces = this.faces;
 
-          null !== r && this.addVertexToFace(e, r), e = n;
-        } while (null !== e);
+      for (var i = 0, l = faces.length; i < l; i++) {
+        var face = faces[i]; // compute signed distance and check on what half space the point lies
+
+        if (face.distanceToPoint(point) > this.tolerance) return false;
+      }
+
+      return true;
+    },
+    intersectRay: function (ray, target) {
+      // based on "Fast Ray-Convex Polyhedron Intersection"  by Eric Haines, GRAPHICS GEMS II
+      var faces = this.faces;
+      var tNear = -Infinity;
+      var tFar = Infinity;
+
+      for (var i = 0, l = faces.length; i < l; i++) {
+        var face = faces[i]; // interpret faces as planes for the further computation
+
+        var vN = face.distanceToPoint(ray.origin);
+        var vD = face.normal.dot(ray.direction); // if the origin is on the positive side of a plane (so the plane can "see" the origin) and
+        // the ray is turned away or parallel to the plane, there is no intersection
+
+        if (vN > 0 && vD >= 0) return null; // compute the distance from the ray’s origin to the intersection with the plane
+
+        var t = vD !== 0 ? -vN / vD : 0; // only proceed if the distance is positive. a negative distance means the intersection point
+        // lies "behind" the origin
+
+        if (t <= 0) continue; // now categorized plane as front-facing or back-facing
+
+        if (vD > 0) {
+          //  plane faces away from the ray, so this plane is a back-face
+          tFar = Math.min(t, tFar);
+        } else {
+          // front-face
+          tNear = Math.max(t, tNear);
+        }
+
+        if (tNear > tFar) {
+          // if tNear ever is greater than tFar, the ray must miss the convex hull
+          return null;
+        }
+      } // evaluate intersection point
+      // always try tNear first since its the closer intersection point
+
+
+      if (tNear !== -Infinity) {
+        ray.at(tNear, target);
+      } else {
+        ray.at(tFar, target);
+      }
+
+      return target;
+    },
+    intersectsRay: function (ray) {
+      return this.intersectRay(ray, v1) !== null;
+    },
+    makeEmpty: function () {
+      this.faces = [];
+      this.vertices = [];
+      return this;
+    },
+    // Adds a vertex to the 'assigned' list of vertices and assigns it to the given face
+    addVertexToFace: function (vertex, face) {
+      vertex.face = face;
+
+      if (face.outside === null) {
+        this.assigned.append(vertex);
+      } else {
+        this.assigned.insertBefore(face.outside, vertex);
+      }
+
+      face.outside = vertex;
+      return this;
+    },
+    // Removes a vertex from the 'assigned' list of vertices and from the given face
+    removeVertexFromFace: function (vertex, face) {
+      if (vertex === face.outside) {
+        // fix face.outside link
+        if (vertex.next !== null && vertex.next.face === face) {
+          // face has at least 2 outside vertices, move the 'outside' reference
+          face.outside = vertex.next;
+        } else {
+          // vertex was the only outside vertex that face had
+          face.outside = null;
+        }
+      }
+
+      this.assigned.remove(vertex);
+      return this;
+    },
+    // Removes all the visible vertices that a given face is able to see which are stored in the 'assigned' vertext list
+    removeAllVerticesFromFace: function (face) {
+      if (face.outside !== null) {
+        // reference to the first and last vertex of this face
+        var start = face.outside;
+        var end = face.outside;
+
+        while (end.next !== null && end.next.face === face) {
+          end = end.next;
+        }
+
+        this.assigned.removeSubList(start, end); // fix references
+
+        start.prev = end.next = null;
+        face.outside = null;
+        return start;
+      }
+    },
+    // Removes all the visible vertices that 'face' is able to see
+    deleteFaceVertices: function (face, absorbingFace) {
+      var faceVertices = this.removeAllVerticesFromFace(face);
+
+      if (faceVertices !== undefined) {
+        if (absorbingFace === undefined) {
+          // mark the vertices to be reassigned to some other face
+          this.unassigned.appendChain(faceVertices);
+        } else {
+          // if there's an absorbing face try to assign as many vertices as possible to it
+          var vertex = faceVertices;
+
+          do {
+            // we need to buffer the subsequent vertex at this point because the 'vertex.next' reference
+            // will be changed by upcoming method calls
+            var nextVertex = vertex.next;
+            var distance = absorbingFace.distanceToPoint(vertex.point); // check if 'vertex' is able to see 'absorbingFace'
+
+            if (distance > this.tolerance) {
+              this.addVertexToFace(vertex, absorbingFace);
+            } else {
+              this.unassigned.append(vertex);
+            } // now assign next vertex
+
+
+            vertex = nextVertex;
+          } while (vertex !== null);
+        }
       }
 
       return this;
     },
-    computeExtremes: function () {
-      var t,
-          e,
-          n,
-          i = new _three.Vector3(),
-          r = new _three.Vector3(),
-          s = [],
-          o = [];
-
-      for (t = 0; t < 3; t++) s[t] = o[t] = this.vertices[0];
-
-      for (i.copy(this.vertices[0].point), r.copy(this.vertices[0].point), t = 0, e = this.vertices.length; t < e; t++) {
-        var u = this.vertices[t],
-            c = u.point;
-
-        for (n = 0; n < 3; n++) c.getComponent(n) < i.getComponent(n) && (i.setComponent(n, c.getComponent(n)), s[n] = u);
-
-        for (n = 0; n < 3; n++) c.getComponent(n) > r.getComponent(n) && (r.setComponent(n, c.getComponent(n)), o[n] = u);
-      }
-
-      return this.tolerance = 3 * Number.EPSILON * (Math.max(Math.abs(i.x), Math.abs(r.x)) + Math.max(Math.abs(i.y), Math.abs(r.y)) + Math.max(Math.abs(i.z), Math.abs(r.z))), {
-        min: s,
-        max: o
-      };
-    },
-    computeInitialHull: function () {
-      void 0 === t && (t = new _three.Line3(), e = new _three.Plane(), n = new _three.Vector3());
-      var i,
-          r,
-          s,
-          u,
-          l,
-          p,
-          f,
-          d,
-          m,
-          g = this.vertices,
-          x = this.computeExtremes(),
-          v = x.min,
-          y = x.max,
-          w = 0,
-          E = 0;
-
-      for (p = 0; p < 3; p++) (m = y[p].point.getComponent(p) - v[p].point.getComponent(p)) > w && (w = m, E = p);
-
-      for (w = 0, t.set((r = v[E]).point, (s = y[E]).point), p = 0, f = this.vertices.length; p < f; p++) (i = g[p]) !== r && i !== s && (t.closestPointToPoint(i.point, !0, n), (m = n.distanceToSquared(i.point)) > w && (w = m, u = i));
-
-      for (w = -1, e.setFromCoplanarPoints(r.point, s.point, u.point), p = 0, f = this.vertices.length; p < f; p++) (i = g[p]) !== r && i !== s && i !== u && (m = Math.abs(e.distanceToPoint(i.point))) > w && (w = m, l = i);
-
-      var T = [];
-      if (e.distanceToPoint(l.point) < 0) for (T.push(o.create(r, s, u), o.create(l, s, r), o.create(l, u, s), o.create(l, r, u)), p = 0; p < 3; p++) d = (p + 1) % 3, T[p + 1].getEdge(2).setTwin(T[0].getEdge(d)), T[p + 1].getEdge(1).setTwin(T[d + 1].getEdge(0));else for (T.push(o.create(r, u, s), o.create(l, r, s), o.create(l, s, u), o.create(l, u, r)), p = 0; p < 3; p++) d = (p + 1) % 3, T[p + 1].getEdge(2).setTwin(T[0].getEdge((3 - p) % 3)), T[p + 1].getEdge(0).setTwin(T[d + 1].getEdge(1));
-
-      for (p = 0; p < 4; p++) this.faces.push(T[p]);
-
-      for (p = 0, f = g.length; p < f; p++) if ((i = g[p]) !== r && i !== s && i !== u && i !== l) {
-        w = this.tolerance;
-        var b = null;
-
-        for (d = 0; d < 4; d++) (m = this.faces[d].distanceToPoint(i.point)) > w && (w = m, b = this.faces[d]);
-
-        null !== b && this.addVertexToFace(i, b);
-      }
-
-      return this;
-    },
-    reindexFaces: function () {
-      for (var t = [], e = 0; e < this.faces.length; e++) {
-        var n = this.faces[e];
-        0 === n.mark && t.push(n);
-      }
-
-      return this.faces = t, this;
-    },
-    nextVertexToAdd: function () {
-      if (!1 === this.assigned.isEmpty()) {
-        var t,
-            e = 0,
-            n = this.assigned.first().face,
-            i = n.outside;
+    // Reassigns as many vertices as possible from the unassigned list to the new faces
+    resolveUnassignedPoints: function (newFaces) {
+      if (this.unassigned.isEmpty() === false) {
+        var vertex = this.unassigned.first();
 
         do {
-          var r = n.distanceToPoint(i.point);
-          r > e && (e = r, t = i), i = i.next;
-        } while (null !== i && i.face === n);
+          // buffer 'next' reference, see .deleteFaceVertices()
+          var nextVertex = vertex.next;
+          var maxDistance = this.tolerance;
+          var maxFace = null;
 
-        return t;
+          for (var i = 0; i < newFaces.length; i++) {
+            var face = newFaces[i];
+
+            if (face.mark === Visible) {
+              var distance = face.distanceToPoint(vertex.point);
+
+              if (distance > maxDistance) {
+                maxDistance = distance;
+                maxFace = face;
+              }
+
+              if (maxDistance > 1000 * this.tolerance) break;
+            }
+          } // 'maxFace' can be null e.g. if there are identical vertices
+
+
+          if (maxFace !== null) {
+            this.addVertexToFace(vertex, maxFace);
+          }
+
+          vertex = nextVertex;
+        } while (vertex !== null);
       }
-    },
-    computeHorizon: function (t, e, n, i) {
-      var r;
-      this.deleteFaceVertices(n), n.mark = 1, r = null === e ? e = n.getEdge(0) : e.next;
-
-      do {
-        var s = r.twin,
-            o = s.face;
-        0 === o.mark && (o.distanceToPoint(t) > this.tolerance ? this.computeHorizon(t, s, o, i) : i.push(r)), r = r.next;
-      } while (r !== e);
 
       return this;
     },
-    addAdjoiningFace: function (t, e) {
-      var n = o.create(t, e.tail(), e.head());
-      return this.faces.push(n), n.getEdge(-1).setTwin(e.twin), n.getEdge(0);
-    },
-    addNewFaces: function (t, e) {
-      this.newFaces = [];
+    // Computes the extremes of a simplex which will be the initial hull
+    computeExtremes: function () {
+      var min = new _three.Vector3();
+      var max = new _three.Vector3();
+      var minVertices = [];
+      var maxVertices = [];
+      var i, l, j; // initially assume that the first vertex is the min/max
 
-      for (var n = null, i = null, r = 0; r < e.length; r++) {
-        var s = this.addAdjoiningFace(t, e[r]);
-        null === n ? n = s : s.next.setTwin(i), this.newFaces.push(s.face), i = s;
+      for (i = 0; i < 3; i++) {
+        minVertices[i] = maxVertices[i] = this.vertices[0];
       }
 
-      return n.next.setTwin(i), this;
+      min.copy(this.vertices[0].point);
+      max.copy(this.vertices[0].point); // compute the min/max vertex on all six directions
+
+      for (i = 0, l = this.vertices.length; i < l; i++) {
+        var vertex = this.vertices[i];
+        var point = vertex.point; // update the min coordinates
+
+        for (j = 0; j < 3; j++) {
+          if (point.getComponent(j) < min.getComponent(j)) {
+            min.setComponent(j, point.getComponent(j));
+            minVertices[j] = vertex;
+          }
+        } // update the max coordinates
+
+
+        for (j = 0; j < 3; j++) {
+          if (point.getComponent(j) > max.getComponent(j)) {
+            max.setComponent(j, point.getComponent(j));
+            maxVertices[j] = vertex;
+          }
+        }
+      } // use min/max vectors to compute an optimal epsilon
+
+
+      this.tolerance = 3 * Number.EPSILON * (Math.max(Math.abs(min.x), Math.abs(max.x)) + Math.max(Math.abs(min.y), Math.abs(max.y)) + Math.max(Math.abs(min.z), Math.abs(max.z)));
+      return {
+        min: minVertices,
+        max: maxVertices
+      };
     },
-    addVertexToHull: function (t) {
-      var e = [];
-      return this.unassigned.clear(), this.removeVertexFromFace(t, t.face), this.computeHorizon(t.point, null, t.face, e), this.addNewFaces(t, e), this.resolveUnassignedPoints(this.newFaces), this;
+    // Computes the initial simplex assigning to its faces all the points
+    // that are candidates to form part of the hull
+    computeInitialHull: function () {
+      var line3, plane, closestPoint;
+      return function computeInitialHull() {
+        if (line3 === undefined) {
+          line3 = new _three.Line3();
+          plane = new _three.Plane();
+          closestPoint = new _three.Vector3();
+        }
+
+        var vertex,
+            vertices = this.vertices;
+        var extremes = this.computeExtremes();
+        var min = extremes.min;
+        var max = extremes.max;
+        var v0, v1, v2, v3;
+        var i, l, j; // 1. Find the two vertices 'v0' and 'v1' with the greatest 1d separation
+        // (max.x - min.x)
+        // (max.y - min.y)
+        // (max.z - min.z)
+
+        var distance,
+            maxDistance = 0;
+        var index = 0;
+
+        for (i = 0; i < 3; i++) {
+          distance = max[i].point.getComponent(i) - min[i].point.getComponent(i);
+
+          if (distance > maxDistance) {
+            maxDistance = distance;
+            index = i;
+          }
+        }
+
+        v0 = min[index];
+        v1 = max[index]; // 2. The next vertex 'v2' is the one farthest to the line formed by 'v0' and 'v1'
+
+        maxDistance = 0;
+        line3.set(v0.point, v1.point);
+
+        for (i = 0, l = this.vertices.length; i < l; i++) {
+          vertex = vertices[i];
+
+          if (vertex !== v0 && vertex !== v1) {
+            line3.closestPointToPoint(vertex.point, true, closestPoint);
+            distance = closestPoint.distanceToSquared(vertex.point);
+
+            if (distance > maxDistance) {
+              maxDistance = distance;
+              v2 = vertex;
+            }
+          }
+        } // 3. The next vertex 'v3' is the one farthest to the plane 'v0', 'v1', 'v2'
+
+
+        maxDistance = -1;
+        plane.setFromCoplanarPoints(v0.point, v1.point, v2.point);
+
+        for (i = 0, l = this.vertices.length; i < l; i++) {
+          vertex = vertices[i];
+
+          if (vertex !== v0 && vertex !== v1 && vertex !== v2) {
+            distance = Math.abs(plane.distanceToPoint(vertex.point));
+
+            if (distance > maxDistance) {
+              maxDistance = distance;
+              v3 = vertex;
+            }
+          }
+        }
+
+        var faces = [];
+
+        if (plane.distanceToPoint(v3.point) < 0) {
+          // the face is not able to see the point so 'plane.normal' is pointing outside the tetrahedron
+          faces.push(Face.create(v0, v1, v2), Face.create(v3, v1, v0), Face.create(v3, v2, v1), Face.create(v3, v0, v2)); // set the twin edge
+
+          for (i = 0; i < 3; i++) {
+            j = (i + 1) % 3; // join face[ i ] i > 0, with the first face
+
+            faces[i + 1].getEdge(2).setTwin(faces[0].getEdge(j)); // join face[ i ] with face[ i + 1 ], 1 <= i <= 3
+
+            faces[i + 1].getEdge(1).setTwin(faces[j + 1].getEdge(0));
+          }
+        } else {
+          // the face is able to see the point so 'plane.normal' is pointing inside the tetrahedron
+          faces.push(Face.create(v0, v2, v1), Face.create(v3, v0, v1), Face.create(v3, v1, v2), Face.create(v3, v2, v0)); // set the twin edge
+
+          for (i = 0; i < 3; i++) {
+            j = (i + 1) % 3; // join face[ i ] i > 0, with the first face
+
+            faces[i + 1].getEdge(2).setTwin(faces[0].getEdge((3 - i) % 3)); // join face[ i ] with face[ i + 1 ]
+
+            faces[i + 1].getEdge(0).setTwin(faces[j + 1].getEdge(1));
+          }
+        } // the initial hull is the tetrahedron
+
+
+        for (i = 0; i < 4; i++) {
+          this.faces.push(faces[i]);
+        } // initial assignment of vertices to the faces of the tetrahedron
+
+
+        for (i = 0, l = vertices.length; i < l; i++) {
+          vertex = vertices[i];
+
+          if (vertex !== v0 && vertex !== v1 && vertex !== v2 && vertex !== v3) {
+            maxDistance = this.tolerance;
+            var maxFace = null;
+
+            for (j = 0; j < 4; j++) {
+              distance = this.faces[j].distanceToPoint(vertex.point);
+
+              if (distance > maxDistance) {
+                maxDistance = distance;
+                maxFace = this.faces[j];
+              }
+            }
+
+            if (maxFace !== null) {
+              this.addVertexToFace(vertex, maxFace);
+            }
+          }
+        }
+
+        return this;
+      };
+    }(),
+    // Removes inactive faces
+    reindexFaces: function () {
+      var activeFaces = [];
+
+      for (var i = 0; i < this.faces.length; i++) {
+        var face = this.faces[i];
+
+        if (face.mark === Visible) {
+          activeFaces.push(face);
+        }
+      }
+
+      this.faces = activeFaces;
+      return this;
+    },
+    // Finds the next vertex to create faces with the current hull
+    nextVertexToAdd: function () {
+      // if the 'assigned' list of vertices is empty, no vertices are left. return with 'undefined'
+      if (this.assigned.isEmpty() === false) {
+        var eyeVertex,
+            maxDistance = 0; // grap the first available face and start with the first visible vertex of that face
+
+        var eyeFace = this.assigned.first().face;
+        var vertex = eyeFace.outside; // now calculate the farthest vertex that face can see
+
+        do {
+          var distance = eyeFace.distanceToPoint(vertex.point);
+
+          if (distance > maxDistance) {
+            maxDistance = distance;
+            eyeVertex = vertex;
+          }
+
+          vertex = vertex.next;
+        } while (vertex !== null && vertex.face === eyeFace);
+
+        return eyeVertex;
+      }
+    },
+    // Computes a chain of half edges in CCW order called the 'horizon'.
+    // For an edge to be part of the horizon it must join a face that can see
+    // 'eyePoint' and a face that cannot see 'eyePoint'.
+    computeHorizon: function (eyePoint, crossEdge, face, horizon) {
+      // moves face's vertices to the 'unassigned' vertex list
+      this.deleteFaceVertices(face);
+      face.mark = Deleted;
+      var edge;
+
+      if (crossEdge === null) {
+        edge = crossEdge = face.getEdge(0);
+      } else {
+        // start from the next edge since 'crossEdge' was already analyzed
+        // (actually 'crossEdge.twin' was the edge who called this method recursively)
+        edge = crossEdge.next;
+      }
+
+      do {
+        var twinEdge = edge.twin;
+        var oppositeFace = twinEdge.face;
+
+        if (oppositeFace.mark === Visible) {
+          if (oppositeFace.distanceToPoint(eyePoint) > this.tolerance) {
+            // the opposite face can see the vertex, so proceed with next edge
+            this.computeHorizon(eyePoint, twinEdge, oppositeFace, horizon);
+          } else {
+            // the opposite face can't see the vertex, so this edge is part of the horizon
+            horizon.push(edge);
+          }
+        }
+
+        edge = edge.next;
+      } while (edge !== crossEdge);
+
+      return this;
+    },
+    // Creates a face with the vertices 'eyeVertex.point', 'horizonEdge.tail' and 'horizonEdge.head' in CCW order
+    addAdjoiningFace: function (eyeVertex, horizonEdge) {
+      // all the half edges are created in ccw order thus the face is always pointing outside the hull
+      var face = Face.create(eyeVertex, horizonEdge.tail(), horizonEdge.head());
+      this.faces.push(face); // join face.getEdge( - 1 ) with the horizon's opposite edge face.getEdge( - 1 ) = face.getEdge( 2 )
+
+      face.getEdge(-1).setTwin(horizonEdge.twin);
+      return face.getEdge(0); // the half edge whose vertex is the eyeVertex
+    },
+    //  Adds 'horizon.length' faces to the hull, each face will be linked with the
+    //  horizon opposite face and the face on the left/right
+    addNewFaces: function (eyeVertex, horizon) {
+      this.newFaces = [];
+      var firstSideEdge = null;
+      var previousSideEdge = null;
+
+      for (var i = 0; i < horizon.length; i++) {
+        var horizonEdge = horizon[i]; // returns the right side edge
+
+        var sideEdge = this.addAdjoiningFace(eyeVertex, horizonEdge);
+
+        if (firstSideEdge === null) {
+          firstSideEdge = sideEdge;
+        } else {
+          // joins face.getEdge( 1 ) with previousFace.getEdge( 0 )
+          sideEdge.next.setTwin(previousSideEdge);
+        }
+
+        this.newFaces.push(sideEdge.face);
+        previousSideEdge = sideEdge;
+      } // perform final join of new faces
+
+
+      firstSideEdge.next.setTwin(previousSideEdge);
+      return this;
+    },
+    // Adds a vertex to the hull
+    addVertexToHull: function (eyeVertex) {
+      var horizon = [];
+      this.unassigned.clear(); // remove 'eyeVertex' from 'eyeVertex.face' so that it can't be added to the 'unassigned' vertex list
+
+      this.removeVertexFromFace(eyeVertex, eyeVertex.face);
+      this.computeHorizon(eyeVertex.point, null, eyeVertex.face, horizon);
+      this.addNewFaces(eyeVertex, horizon); // reassign 'unassigned' vertices to the new faces
+
+      this.resolveUnassignedPoints(this.newFaces);
+      return this;
     },
     cleanup: function () {
-      return this.assigned.clear(), this.unassigned.clear(), this.newFaces = [], this;
+      this.assigned.clear();
+      this.unassigned.clear();
+      this.newFaces = [];
+      return this;
     },
     compute: function () {
-      var t;
+      var vertex;
+      this.computeInitialHull(); // add all available vertices gradually to the hull
 
-      for (this.computeInitialHull(); void 0 !== (t = this.nextVertexToAdd());) this.addVertexToHull(t);
+      while ((vertex = this.nextVertexToAdd()) !== undefined) {
+        this.addVertexToHull(vertex);
+      }
 
-      return this.reindexFaces(), this.cleanup(), this;
+      this.reindexFaces();
+      this.cleanup();
+      return this;
     }
-  }), Object.assign(o, {
-    create: function (t, e, n) {
-      var i = new o(),
-          r = new p(t, i),
-          s = new p(e, i),
-          a = new p(n, i);
-      return r.next = a.prev = s, s.next = r.prev = a, a.next = s.prev = r, i.edge = r, i.compute();
+  }); //
+
+  function Face() {
+    this.normal = new _three.Vector3();
+    this.midpoint = new _three.Vector3();
+    this.area = 0;
+    this.constant = 0; // signed distance from face to the origin
+
+    this.outside = null; // reference to a vertex in a vertex list this face can see
+
+    this.mark = Visible;
+    this.edge = null;
+  }
+
+  Object.assign(Face, {
+    create: function (a, b, c) {
+      var face = new Face();
+      var e0 = new HalfEdge(a, face);
+      var e1 = new HalfEdge(b, face);
+      var e2 = new HalfEdge(c, face); // join edges
+
+      e0.next = e2.prev = e1;
+      e1.next = e0.prev = e2;
+      e2.next = e1.prev = e0; // main half edge reference
+
+      face.edge = e0;
+      return face.compute();
     }
-  }), Object.assign(o.prototype, {
-    getEdge: function (t) {
-      for (var e = this.edge; t > 0;) e = e.next, t--;
+  });
+  Object.assign(Face.prototype, {
+    getEdge: function (i) {
+      var edge = this.edge;
 
-      for (; t < 0;) e = e.prev, t++;
+      while (i > 0) {
+        edge = edge.next;
+        i--;
+      }
 
-      return e;
+      while (i < 0) {
+        edge = edge.prev;
+        i++;
+      }
+
+      return edge;
     },
     compute: function () {
-      void 0 === i && (i = new _three.Triangle());
-      var t = this.edge.tail(),
-          e = this.edge.head(),
-          n = this.edge.next.head();
-      return i.set(t.point, e.point, n.point), i.getNormal(this.normal), i.getMidpoint(this.midpoint), this.area = i.getArea(), this.constant = this.normal.dot(this.midpoint), this;
-    },
-    distanceToPoint: function (t) {
-      return this.normal.dot(t) - this.constant;
+      var triangle;
+      return function compute() {
+        if (triangle === undefined) triangle = new _three.Triangle();
+        var a = this.edge.tail();
+        var b = this.edge.head();
+        var c = this.edge.next.head();
+        triangle.set(a.point, b.point, c.point);
+        triangle.getNormal(this.normal);
+        triangle.getMidpoint(this.midpoint);
+        this.area = triangle.getArea();
+        this.constant = this.normal.dot(this.midpoint);
+        return this;
+      };
+    }(),
+    distanceToPoint: function (point) {
+      return this.normal.dot(point) - this.constant;
     }
-  }), Object.assign(p.prototype, {
+  }); // Entity for a Doubly-Connected Edge List (DCEL).
+
+  function HalfEdge(vertex, face) {
+    this.vertex = vertex;
+    this.prev = null;
+    this.next = null;
+    this.twin = null;
+    this.face = face;
+  }
+
+  Object.assign(HalfEdge.prototype, {
     head: function () {
       return this.vertex;
     },
@@ -14638,19 +15019,46 @@ var x = function () {
       return this.prev ? this.prev.vertex : null;
     },
     length: function () {
-      var t = this.head(),
-          e = this.tail();
-      return null !== e ? e.point.distanceTo(t.point) : -1;
+      var head = this.head();
+      var tail = this.tail();
+
+      if (tail !== null) {
+        return tail.point.distanceTo(head.point);
+      }
+
+      return -1;
     },
     lengthSquared: function () {
-      var t = this.head(),
-          e = this.tail();
-      return null !== e ? e.point.distanceToSquared(t.point) : -1;
+      var head = this.head();
+      var tail = this.tail();
+
+      if (tail !== null) {
+        return tail.point.distanceToSquared(head.point);
+      }
+
+      return -1;
     },
-    setTwin: function (t) {
-      return this.twin = t, t.twin = this, this;
+    setTwin: function (edge) {
+      this.twin = edge;
+      edge.twin = this;
+      return this;
     }
-  }), Object.assign(d.prototype, {
+  }); // A vertex as a double linked list node.
+
+  function VertexNode(point) {
+    this.point = point;
+    this.prev = null;
+    this.next = null;
+    this.face = null; // the face that is able to see this vertex
+  } // A double linked list that contains vertex nodes.
+
+
+  function VertexList() {
+    this.head = null;
+    this.tail = null;
+  }
+
+  Object.assign(VertexList.prototype, {
     first: function () {
       return this.head;
     },
@@ -14658,362 +15066,637 @@ var x = function () {
       return this.tail;
     },
     clear: function () {
-      return this.head = this.tail = null, this;
+      this.head = this.tail = null;
+      return this;
     },
-    insertBefore: function (t, e) {
-      return e.prev = t.prev, e.next = t, null === e.prev ? this.head = e : e.prev.next = e, t.prev = e, this;
-    },
-    insertAfter: function (t, e) {
-      return e.prev = t, e.next = t.next, null === e.next ? this.tail = e : e.next.prev = e, t.next = e, this;
-    },
-    append: function (t) {
-      return null === this.head ? this.head = t : this.tail.next = t, t.prev = this.tail, t.next = null, this.tail = t, this;
-    },
-    appendChain: function (t) {
-      for (null === this.head ? this.head = t : this.tail.next = t, t.prev = this.tail; null !== t.next;) t = t.next;
+    // Inserts a vertex before the target vertex
+    insertBefore: function (target, vertex) {
+      vertex.prev = target.prev;
+      vertex.next = target;
 
-      return this.tail = t, this;
+      if (vertex.prev === null) {
+        this.head = vertex;
+      } else {
+        vertex.prev.next = vertex;
+      }
+
+      target.prev = vertex;
+      return this;
     },
-    remove: function (t) {
-      return null === t.prev ? this.head = t.next : t.prev.next = t.next, null === t.next ? this.tail = t.prev : t.next.prev = t.prev, this;
+    // Inserts a vertex after the target vertex
+    insertAfter: function (target, vertex) {
+      vertex.prev = target;
+      vertex.next = target.next;
+
+      if (vertex.next === null) {
+        this.tail = vertex;
+      } else {
+        vertex.next.prev = vertex;
+      }
+
+      target.next = vertex;
+      return this;
     },
-    removeSubList: function (t, e) {
-      return null === t.prev ? this.head = e.next : t.prev.next = e.next, null === e.next ? this.tail = t.prev : e.next.prev = t.prev, this;
+    // Appends a vertex to the end of the linked list
+    append: function (vertex) {
+      if (this.head === null) {
+        this.head = vertex;
+      } else {
+        this.tail.next = vertex;
+      }
+
+      vertex.prev = this.tail;
+      vertex.next = null; // the tail has no subsequent vertex
+
+      this.tail = vertex;
+      return this;
+    },
+    // Appends a chain of vertices where 'vertex' is the head.
+    appendChain: function (vertex) {
+      if (this.head === null) {
+        this.head = vertex;
+      } else {
+        this.tail.next = vertex;
+      }
+
+      vertex.prev = this.tail; // ensure that the 'tail' reference points to the last vertex of the chain
+
+      while (vertex.next !== null) {
+        vertex = vertex.next;
+      }
+
+      this.tail = vertex;
+      return this;
+    },
+    // Removes a vertex from the linked list
+    remove: function (vertex) {
+      if (vertex.prev === null) {
+        this.head = vertex.next;
+      } else {
+        vertex.prev.next = vertex.next;
+      }
+
+      if (vertex.next === null) {
+        this.tail = vertex.prev;
+      } else {
+        vertex.next.prev = vertex.prev;
+      }
+
+      return this;
+    },
+    // Removes a list of vertices whose 'head' is 'a' and whose 'tail' is b
+    removeSubList: function (a, b) {
+      if (a.prev === null) {
+        this.head = b.next;
+      } else {
+        a.prev.next = b.next;
+      }
+
+      if (b.next === null) {
+        this.tail = a.prev;
+      } else {
+        b.next.prev = a.prev;
+      }
+
+      return this;
     },
     isEmpty: function () {
-      return null === this.head;
+      return this.head === null;
     }
-  }), s;
+  });
+  return ConvexHull;
 }();
 
-const v = new _three.Vector3(),
-      y = new _three.Vector3(),
-      w = new _three.Quaternion();
+const _v1 = new _three.Vector3();
 
-function E(t) {
-  const e = function (t) {
-    const e = [];
-    return t.traverse(function (t) {
-      t.isMesh && e.push(t);
-    }), e;
-  }(t);
+const _v2 = new _three.Vector3();
 
-  if (0 === e.length) return null;
-  if (1 === e.length) return T(e[0]);
-  let n;
-  const i = [];
+const _q1 = new _three.Quaternion();
+/**
+* Returns a single geometry for the given object. If the object is compound,
+* its geometries are automatically merged. Bake world scale into each
+* geometry, because we can't easily apply that to the cannonjs shapes later.
+*/
 
-  for (; n = e.pop();) i.push(B(T(n)));
 
-  return function (t) {
-    let e = 0;
+function getGeometry(object) {
+  const meshes = getMeshes(object);
+  if (meshes.length === 0) return null; // Single mesh. Return, preserving original type.
 
-    for (let n = 0; n < t.length; n++) {
-      const i = t[n].attributes.position;
-      i && 3 === i.itemSize && (e += i.count);
-    }
+  if (meshes.length === 1) {
+    return normalizeGeometry(meshes[0]);
+  } // Multiple meshes. Merge and return.
 
-    const n = new Float32Array(3 * e);
-    let i = 0;
 
-    for (let e = 0; e < t.length; e++) {
-      const r = t[e].attributes.position;
-      if (r && 3 === r.itemSize) for (let t = 0; t < r.count; t++) n[i++] = r.getX(t), n[i++] = r.getY(t), n[i++] = r.getZ(t);
-    }
+  let mesh;
+  const geometries = [];
 
-    return new _three.BufferGeometry().setAttribute("position", new _three.BufferAttribute(n, 3));
-  }(i);
-}
-
-function T(t) {
-  let e = t.geometry;
-  return e = e.toBufferGeometry ? e.toBufferGeometry() : e.clone(), t.updateMatrixWorld(), t.matrixWorld.decompose(v, w, y), e.scale(y.x, y.y, y.z), e;
-}
-
-function b(t) {
-  const e = t.attributes.position,
-        n = new Float32Array(3 * e.count);
-
-  for (let t = 0; t < e.count; t += 3) n[t] = e.getX(t), n[t + 1] = e.getY(t), n[t + 2] = e.getZ(t);
-
-  return n;
-}
-
-function F(t, e) {
-  switch (e) {
-    case "x":
-      return t.x;
-
-    case "y":
-      return t.y;
-
-    case "z":
-      return t.z;
+  while (mesh = meshes.pop()) {
+    geometries.push(simplifyGeometry(normalizeGeometry(mesh)));
   }
 
-  throw new Error(`Unexpected component ${e}`);
+  return mergeBufferGeometries(geometries);
 }
 
-function B(t, e = 1e-4) {
-  e = Math.max(e, Number.EPSILON);
-  const n = {},
-        i = t.getIndex(),
-        r = t.getAttribute("position"),
-        s = i ? i.count : r.count;
-  let o = 0;
-  const a = [],
-        c = [],
-        h = Math.log10(1 / e),
-        l = Math.pow(10, h);
+function normalizeGeometry(mesh) {
+  let geometry = mesh.geometry;
 
-  for (let t = 0; t < s; t++) {
-    const e = i ? i.getX(t) : t;
-    let s = "";
-    s += ~~(r.getX(e) * l) + ",", s += ~~(r.getY(e) * l) + ",", s += ~~(r.getZ(e) * l) + ",", s in n ? a.push(n[s]) : (c.push(r.getX(e)), c.push(r.getY(e)), c.push(r.getZ(e)), n[s] = o, a.push(o), o++);
+  if (geometry.toBufferGeometry) {
+    geometry = geometry.toBufferGeometry();
+  } else {
+    // Preserve original type, e.g. CylinderBufferGeometry.
+    geometry = geometry.clone();
   }
 
-  const p = new _three.BufferAttribute(new Float32Array(c), r.itemSize, r.normalized),
-        d = new _three.BufferGeometry();
-  return d.setAttribute("position", p), d.setIndex(a), d;
+  mesh.updateMatrixWorld();
+  mesh.matrixWorld.decompose(_v1, _q1, _v2);
+  geometry.scale(_v2.x, _v2.y, _v2.z);
+  return geometry;
+}
+/**
+ * Greatly simplified version of BufferGeometryUtils.mergeBufferGeometries.
+ * Because we only care about the vertex positions, and not the indices or
+ * other attributes, we throw everything else away.
+ */
+
+
+function mergeBufferGeometries(geometries) {
+  let vertexCount = 0;
+
+  for (let i = 0; i < geometries.length; i++) {
+    const position = geometries[i].attributes.position;
+
+    if (position && position.itemSize === 3) {
+      vertexCount += position.count;
+    }
+  }
+
+  const positionArray = new Float32Array(vertexCount * 3);
+  let positionOffset = 0;
+
+  for (let i = 0; i < geometries.length; i++) {
+    const position = geometries[i].attributes.position;
+
+    if (position && position.itemSize === 3) {
+      for (let j = 0; j < position.count; j++) {
+        positionArray[positionOffset++] = position.getX(j);
+        positionArray[positionOffset++] = position.getY(j);
+        positionArray[positionOffset++] = position.getZ(j);
+      }
+    }
+  }
+
+  return new _three.BufferGeometry().setAttribute('position', new _three.BufferAttribute(positionArray, 3));
 }
 
-const P = Math.PI / 2;
-var S;
-exports.ShapeType = S;
-!function (t) {
-  t.BOX = "Box", t.CYLINDER = "Cylinder", t.SPHERE = "Sphere", t.HULL = "ConvexPolyhedron", t.MESH = "Trimesh";
-}(S || (exports.ShapeType = S = {}));
+function getVertices(geometry) {
+  const position = geometry.attributes.position;
+  const vertices = new Float32Array(position.count * 3);
 
-const z = function (e, n = {}) {
-  let i;
-  if (n.type === S.BOX) return H(e);
-  if (n.type === S.CYLINDER) return function (e, n) {
-    const i = ["x", "y", "z"],
-          r = n.cylinderAxis || "y",
-          s = i.splice(i.indexOf(r), 1) && i,
-          o = new _three.Box3().setFromObject(e);
-    if (!isFinite(o.min.lengthSq())) return null;
-    const a = o.max[r] - o.min[r],
-          u = .5 * Math.max(F(o.max, s[0]) - F(o.min, s[0]), F(o.max, s[1]) - F(o.min, s[1])),
-          c = "y" === r ? P : 0,
-          h = "z" === r ? P : 0;
-    return {
-      type: S.CYLINDER,
-      params: {
-        radiusTop: u,
-        radiusBottom: u,
-        height: a,
-        segments: 12
-      },
-      orientation: new _cannonEs.Quaternion().setFromEuler(c, h, 0, "XYZ").normalize()
-    };
-  }(e, n);
-  if (n.type === S.SPHERE) return function (t, e) {
-    if (e.sphereRadius) return {
-      type: S.SPHERE,
-      params: {
-        radius: e.sphereRadius
-      }
-    };
-    const n = E(t);
-    return n ? (n.computeBoundingSphere(), {
-      type: S.SPHERE,
-      params: {
-        radius: n.boundingSphere.radius
-      }
-    }) : null;
-  }(e, n);
-  if (n.type === S.HULL) return function (t) {
-    const e = E(t);
-    if (!e) return null;
-    const n = 1e-4;
+  for (let i = 0; i < position.count; i++) {
+    vertices[i * 3] = position.getX(i);
+    vertices[i * 3 + 1] = position.getY(i);
+    vertices[i * 3 + 2] = position.getZ(i);
+  }
 
-    for (let t = 0; t < e.attributes.position.count; t++) e.attributes.position.setXYZ(t, e.attributes.position.getX(t) + (Math.random() - .5) * n, e.attributes.position.getY(t) + (Math.random() - .5) * n, e.attributes.position.getZ(t) + (Math.random() - .5) * n);
+  return vertices;
+}
+/**
+* Returns a flat array of THREE.Mesh instances from the given object. If
+* nested transformations are found, they are applied to child meshes
+* as mesh.userData.matrix, so that each mesh has its position/rotation/scale
+* independently of all of its parents except the top-level object.
+*/
 
-    const i = new x().setFromObject(new _three.Mesh(e)).faces,
-          r = [],
-          s = [];
-    let o = 0;
 
-    for (let t = 0; t < i.length; t++) {
-      const e = i[t],
-            n = [];
-      s.push(n);
-      let a = e.edge;
-
-      do {
-        const t = a.head().point;
-        r.push(t.x, t.y, t.z), n.push(o), o++, a = a.next;
-      } while (a !== e.edge);
+function getMeshes(object) {
+  const meshes = [];
+  object.traverse(function (o) {
+    if (o.isMesh) {
+      meshes.push(o);
     }
+  });
+  return meshes;
+}
 
-    const a = new Float32Array(r.length);
-    return a.set(r), {
-      type: S.HULL,
-      params: {
-        vertices: a,
-        faces: s
-      }
-    };
-  }(e);
-  if (n.type === S.MESH) return i = E(e), i ? function (t) {
-    const e = b(t);
-    if (!e.length) return null;
-    const n = new Uint32Array(e.length);
+function getComponent(v, component) {
+  switch (component) {
+    case 'x':
+      return v.x;
 
-    for (let t = 0; t < e.length; t++) n[t] = t;
+    case 'y':
+      return v.y;
 
-    return {
-      type: S.MESH,
-      params: {
-        vertices: e,
-        indices: n
-      }
-    };
-  }(i) : null;
-  if (n.type) throw new Error(`[CANNON.getShapeParameters] Invalid type "${n.type}".`);
-  if (i = E(e), !i) return null;
+    case 'z':
+      return v.z;
+  }
 
-  switch (i.type) {
-    case "BoxGeometry":
-    case "BoxBufferGeometry":
-      return C(i);
+  throw new Error("Unexpected component " + component);
+}
+/**
+* Modified version of BufferGeometryUtils.mergeVertices, ignoring vertex
+* attributes other than position.
+*
+* @param {THREE.BufferGeometry} geometry
+* @param {number} tolerance
+* @return {THREE.BufferGeometry>}
+*/
 
-    case "CylinderGeometry":
-    case "CylinderBufferGeometry":
-      return function (e) {
-        const n = e.parameters;
-        return {
-          type: S.CYLINDER,
-          params: {
-            radiusTop: n.radiusTop,
-            radiusBottom: n.radiusBottom,
-            height: n.height,
-            segments: n.radialSegments
-          },
-          orientation: new _cannonEs.Quaternion().setFromEuler(_three.MathUtils.degToRad(-90), 0, 0, "XYZ").normalize()
-        };
-      }(i);
 
-    case "PlaneGeometry":
-    case "PlaneBufferGeometry":
-      return function (t) {
-        t.computeBoundingBox();
-        const e = t.boundingBox;
-        return {
-          type: S.BOX,
-          params: {
-            x: (e.max.x - e.min.x) / 2 || .1,
-            y: (e.max.y - e.min.y) / 2 || .1,
-            z: (e.max.z - e.min.z) / 2 || .1
-          }
-        };
-      }(i);
+function simplifyGeometry(geometry, tolerance = 1e-4) {
+  tolerance = Math.max(tolerance, Number.EPSILON); // Generate an index buffer if the geometry doesn't have one, or optimize it
+  // if it's already available.
 
-    case "SphereGeometry":
-    case "SphereBufferGeometry":
-      return function (t) {
-        return {
-          type: S.SPHERE,
-          params: {
-            radius: t.parameters.radius
-          }
-        };
-      }(i);
+  const hashToIndex = {};
+  const indices = geometry.getIndex();
+  const positions = geometry.getAttribute('position');
+  const vertexCount = indices ? indices.count : positions.count; // Next value for triangle indices.
 
-    case "TubeGeometry":
-    case "BufferGeometry":
-      return H(e);
+  let nextIndex = 0;
+  const newIndices = [];
+  const newPositions = []; // Convert the error tolerance to an amount of decimal places to truncate to.
+
+  const decimalShift = Math.log10(1 / tolerance);
+  const shiftMultiplier = Math.pow(10, decimalShift);
+
+  for (let i = 0; i < vertexCount; i++) {
+    const index = indices ? indices.getX(i) : i; // Generate a hash for the vertex attributes at the current index 'i'.
+
+    let hash = ''; // Double tilde truncates the decimal value.
+
+    hash += ~~(positions.getX(index) * shiftMultiplier) + ",";
+    hash += ~~(positions.getY(index) * shiftMultiplier) + ",";
+    hash += ~~(positions.getZ(index) * shiftMultiplier) + ","; // Add another reference to the vertex if it's already
+    // used by another index.
+
+    if (hash in hashToIndex) {
+      newIndices.push(hashToIndex[hash]);
+    } else {
+      newPositions.push(positions.getX(index));
+      newPositions.push(positions.getY(index));
+      newPositions.push(positions.getZ(index));
+      hashToIndex[hash] = nextIndex;
+      newIndices.push(nextIndex);
+      nextIndex++;
+    }
+  } // Construct merged BufferGeometry.
+
+
+  const positionAttribute = new _three.BufferAttribute(new Float32Array(newPositions), positions.itemSize, positions.normalized);
+  const result = new _three.BufferGeometry();
+  result.setAttribute('position', positionAttribute);
+  result.setIndex(newIndices);
+  return result;
+}
+
+const PI_2 = Math.PI / 2;
+var ShapeType;
+exports.ShapeType = ShapeType;
+
+(function (ShapeType) {
+  ShapeType["BOX"] = "Box";
+  ShapeType["CYLINDER"] = "Cylinder";
+  ShapeType["SPHERE"] = "Sphere";
+  ShapeType["HULL"] = "ConvexPolyhedron";
+  ShapeType["MESH"] = "Trimesh";
+})(ShapeType || (exports.ShapeType = ShapeType = {}));
+/**
+ * Given a THREE.Object3D instance, creates parameters for a CANNON shape.
+ */
+
+
+const getShapeParameters = function (object, options = {}) {
+  let geometry;
+
+  if (options.type === ShapeType.BOX) {
+    return getBoundingBoxParameters(object);
+  } else if (options.type === ShapeType.CYLINDER) {
+    return getBoundingCylinderParameters(object, options);
+  } else if (options.type === ShapeType.SPHERE) {
+    return getBoundingSphereParameters(object, options);
+  } else if (options.type === ShapeType.HULL) {
+    return getConvexPolyhedronParameters(object);
+  } else if (options.type === ShapeType.MESH) {
+    geometry = getGeometry(object);
+    return geometry ? getTrimeshParameters(geometry) : null;
+  } else if (options.type) {
+    throw new Error("[CANNON.getShapeParameters] Invalid type \"" + options.type + "\".");
+  }
+
+  geometry = getGeometry(object);
+  if (!geometry) return null;
+
+  switch (geometry.type) {
+    case 'BoxGeometry':
+    case 'BoxBufferGeometry':
+      return getBoxParameters(geometry);
+
+    case 'CylinderGeometry':
+    case 'CylinderBufferGeometry':
+      return getCylinderParameters(geometry);
+
+    case 'PlaneGeometry':
+    case 'PlaneBufferGeometry':
+      return getPlaneParameters(geometry);
+
+    case 'SphereGeometry':
+    case 'SphereBufferGeometry':
+      return getSphereParameters(geometry);
+
+    case 'TubeGeometry':
+    case 'BufferGeometry':
+      return getBoundingBoxParameters(object);
 
     default:
-      return console.warn('Unrecognized geometry: "%s". Using bounding box as shape.', i.type), C(i);
+      console.warn('Unrecognized geometry: "%s". Using bounding box as shape.', geometry.type);
+      return getBoxParameters(geometry);
   }
-},
-      M = function (t, a = {}) {
-  const u = z(t, a);
-  if (!u) return null;
+};
+/**
+ * Given a THREE.Object3D instance, creates a corresponding CANNON shape.
+ */
+
+
+exports.getShapeParameters = getShapeParameters;
+
+const threeToCannon = function (object, options = {}) {
+  const shapeParameters = getShapeParameters(object, options);
+
+  if (!shapeParameters) {
+    return null;
+  }
+
   const {
-    type: c,
-    params: h,
-    offset: l,
-    orientation: p
-  } = u;
-  let f;
-  return f = c === S.BOX ? function (t) {
-    const {
-      x: i,
-      y: r,
-      z: s
-    } = t;
-    return new _cannonEs.Box(new _cannonEs.Vec3(i, r, s));
-  }(h) : c === S.CYLINDER ? function (t) {
-    const {
-      radiusTop: e,
-      radiusBottom: n,
-      height: r,
-      segments: s
-    } = t,
-          o = new _cannonEs.Cylinder(e, n, r, s);
-    return o.radiusTop = n, o.radiusBottom = n, o.height = r, o.numSegments = s, o;
-  }(h) : c === S.SPHERE ? function (t) {
-    return new _cannonEs.Sphere(t.radius);
-  }(h) : c === S.HULL ? function (t) {
-    const {
-      faces: e,
-      vertices: i
-    } = t,
-          r = [];
+    type,
+    params,
+    offset,
+    orientation
+  } = shapeParameters;
+  let shape;
 
-    for (let t = 0; t < i.length; t += 3) r.push(new _cannonEs.Vec3(i[t], i[t + 1], i[t + 2]));
+  if (type === ShapeType.BOX) {
+    shape = createBox(params);
+  } else if (type === ShapeType.CYLINDER) {
+    shape = createCylinder(params);
+  } else if (type === ShapeType.SPHERE) {
+    shape = createSphere(params);
+  } else if (type === ShapeType.HULL) {
+    shape = createConvexPolyhedron(params);
+  } else {
+    shape = createTrimesh(params);
+  }
 
-    return new _cannonEs.ConvexPolyhedron({
-      faces: e,
-      vertices: r
-    });
-  }(h) : function (t) {
-    const {
-      vertices: e,
-      indices: n
-    } = t;
-    return new _cannonEs.Trimesh(e, n);
-  }(h), {
-    shape: f,
-    offset: l,
-    orientation: p
+  return {
+    shape,
+    offset,
+    orientation
   };
 };
+/******************************************************************************
+ * Shape construction
+ */
 
-exports.threeToCannon = M;
-exports.getShapeParameters = z;
 
-function C(t) {
-  if (!b(t).length) return null;
-  t.computeBoundingBox();
-  const e = t.boundingBox;
+exports.threeToCannon = threeToCannon;
+
+function createBox(params) {
+  const {
+    x,
+    y,
+    z
+  } = params;
+  const shape = new _cannonEs.Box(new _cannonEs.Vec3(x, y, z));
+  return shape;
+}
+
+function createCylinder(params) {
+  const {
+    radiusTop,
+    radiusBottom,
+    height,
+    segments
+  } = params;
+  const shape = new _cannonEs.Cylinder(radiusTop, radiusBottom, height, segments); // Include metadata for serialization.
+  // TODO(cleanup): Is this still necessary?
+
+  shape.radiusTop = radiusBottom;
+  shape.radiusBottom = radiusBottom;
+  shape.height = height;
+  shape.numSegments = segments;
+  return shape;
+}
+
+function createSphere(params) {
+  const shape = new _cannonEs.Sphere(params.radius);
+  return shape;
+}
+
+function createConvexPolyhedron(params) {
+  const {
+    faces,
+    vertices: verticesArray
+  } = params;
+  const vertices = [];
+
+  for (let i = 0; i < verticesArray.length; i += 3) {
+    vertices.push(new _cannonEs.Vec3(verticesArray[i], verticesArray[i + 1], verticesArray[i + 2]));
+  }
+
+  const shape = new _cannonEs.ConvexPolyhedron({
+    faces,
+    vertices
+  });
+  return shape;
+}
+
+function createTrimesh(params) {
+  const {
+    vertices,
+    indices
+  } = params;
+  const shape = new _cannonEs.Trimesh(vertices, indices);
+  return shape;
+}
+/******************************************************************************
+ * Shape parameters
+ */
+
+
+function getBoxParameters(geometry) {
+  const vertices = getVertices(geometry);
+  if (!vertices.length) return null;
+  geometry.computeBoundingBox();
+  const box = geometry.boundingBox;
   return {
-    type: S.BOX,
+    type: ShapeType.BOX,
     params: {
-      x: (e.max.x - e.min.x) / 2,
-      y: (e.max.y - e.min.y) / 2,
-      z: (e.max.z - e.min.z) / 2
+      x: (box.max.x - box.min.x) / 2,
+      y: (box.max.y - box.min.y) / 2,
+      z: (box.max.z - box.min.z) / 2
+    }
+  };
+}
+/** Bounding box needs to be computed with the entire subtree, not just geometry. */
+
+
+function getBoundingBoxParameters(object) {
+  const clone = object.clone();
+  clone.quaternion.set(0, 0, 0, 1);
+  clone.updateMatrixWorld();
+  const box = new _three.Box3().setFromObject(clone);
+  if (!isFinite(box.min.lengthSq())) return null;
+  const localPosition = box.translate(clone.position.negate()).getCenter(new _three.Vector3());
+  return {
+    type: ShapeType.BOX,
+    params: {
+      x: (box.max.x - box.min.x) / 2,
+      y: (box.max.y - box.min.y) / 2,
+      z: (box.max.z - box.min.z) / 2
+    },
+    offset: localPosition.lengthSq() ? new _cannonEs.Vec3(localPosition.x, localPosition.y, localPosition.z) : undefined
+  };
+}
+/** Computes 3D convex hull as a CANNON.ConvexPolyhedron. */
+
+
+function getConvexPolyhedronParameters(object) {
+  const geometry = getGeometry(object);
+  if (!geometry) return null; // Perturb.
+
+  const eps = 1e-4;
+
+  for (let i = 0; i < geometry.attributes.position.count; i++) {
+    geometry.attributes.position.setXYZ(i, geometry.attributes.position.getX(i) + (Math.random() - 0.5) * eps, geometry.attributes.position.getY(i) + (Math.random() - 0.5) * eps, geometry.attributes.position.getZ(i) + (Math.random() - 0.5) * eps);
+  } // Compute the 3D convex hull.
+
+
+  const hull = new ConvexHull().setFromObject(new _three.Mesh(geometry));
+  const hullFaces = hull.faces;
+  const vertices = [];
+  const faces = [];
+  let currentFaceVertex = 0;
+
+  for (let i = 0; i < hullFaces.length; i++) {
+    const hullFace = hullFaces[i];
+    const face = [];
+    faces.push(face);
+    let edge = hullFace.edge;
+
+    do {
+      const point = edge.head().point;
+      vertices.push(point.x, point.y, point.z);
+      face.push(currentFaceVertex);
+      currentFaceVertex++;
+      edge = edge.next;
+    } while (edge !== hullFace.edge);
+  }
+
+  const verticesTypedArray = new Float32Array(vertices.length);
+  verticesTypedArray.set(vertices);
+  return {
+    type: ShapeType.HULL,
+    params: {
+      vertices: verticesTypedArray,
+      faces
     }
   };
 }
 
-function H(t) {
-  const e = t.clone();
-  e.quaternion.set(0, 0, 0, 1), e.updateMatrixWorld();
-  const i = new _three.Box3().setFromObject(e);
-  if (!isFinite(i.min.lengthSq())) return null;
-  const r = i.translate(e.position.negate()).getCenter(new _three.Vector3());
+function getCylinderParameters(geometry) {
+  const params = geometry.parameters;
   return {
-    type: S.BOX,
+    type: ShapeType.CYLINDER,
     params: {
-      x: (i.max.x - i.min.x) / 2,
-      y: (i.max.y - i.min.y) / 2,
-      z: (i.max.z - i.min.z) / 2
+      radiusTop: params.radiusTop,
+      radiusBottom: params.radiusBottom,
+      height: params.height,
+      segments: params.radialSegments
     },
-    offset: r.lengthSq() ? new _cannonEs.Vec3(r.x, r.y, r.z) : void 0
+    orientation: new _cannonEs.Quaternion().setFromEuler(_three.MathUtils.degToRad(-90), 0, 0, 'XYZ').normalize()
+  };
+}
+
+function getBoundingCylinderParameters(object, options) {
+  const axes = ['x', 'y', 'z'];
+  const majorAxis = options.cylinderAxis || 'y';
+  const minorAxes = axes.splice(axes.indexOf(majorAxis), 1) && axes;
+  const box = new _three.Box3().setFromObject(object);
+  if (!isFinite(box.min.lengthSq())) return null; // Compute cylinder dimensions.
+
+  const height = box.max[majorAxis] - box.min[majorAxis];
+  const radius = 0.5 * Math.max(getComponent(box.max, minorAxes[0]) - getComponent(box.min, minorAxes[0]), getComponent(box.max, minorAxes[1]) - getComponent(box.min, minorAxes[1]));
+  const eulerX = majorAxis === 'y' ? PI_2 : 0;
+  const eulerY = majorAxis === 'z' ? PI_2 : 0;
+  return {
+    type: ShapeType.CYLINDER,
+    params: {
+      radiusTop: radius,
+      radiusBottom: radius,
+      height,
+      segments: 12
+    },
+    orientation: new _cannonEs.Quaternion().setFromEuler(eulerX, eulerY, 0, 'XYZ').normalize()
+  };
+}
+
+function getPlaneParameters(geometry) {
+  geometry.computeBoundingBox();
+  const box = geometry.boundingBox;
+  return {
+    type: ShapeType.BOX,
+    params: {
+      x: (box.max.x - box.min.x) / 2 || 0.1,
+      y: (box.max.y - box.min.y) / 2 || 0.1,
+      z: (box.max.z - box.min.z) / 2 || 0.1
+    }
+  };
+}
+
+function getSphereParameters(geometry) {
+  return {
+    type: ShapeType.SPHERE,
+    params: {
+      radius: geometry.parameters.radius
+    }
+  };
+}
+
+function getBoundingSphereParameters(object, options) {
+  if (options.sphereRadius) {
+    return {
+      type: ShapeType.SPHERE,
+      params: {
+        radius: options.sphereRadius
+      }
+    };
+  }
+
+  const geometry = getGeometry(object);
+  if (!geometry) return null;
+  geometry.computeBoundingSphere();
+  return {
+    type: ShapeType.SPHERE,
+    params: {
+      radius: geometry.boundingSphere.radius
+    }
+  };
+}
+
+function getTrimeshParameters(geometry) {
+  const vertices = getVertices(geometry);
+  if (!vertices.length) return null;
+  const indices = new Uint32Array(vertices.length);
+
+  for (let i = 0; i < vertices.length; i++) {
+    indices[i] = i;
+  }
+
+  return {
+    type: ShapeType.MESH,
+    params: {
+      vertices,
+      indices
+    }
   };
 }
 
@@ -16437,7 +17120,7 @@ var Shape = {
 
     // box
     halfExtents: {type: 'vec3', default: {x: 0.5, y: 0.5, z: 0.5}, if: {shape: ['box']}},
-    
+
     // cylinder
     radiusTop: {type: 'number', default: 1, if: {shape: ['cylinder']}},
     radiusBottom: {type: 'number', default: 1, if: {shape: ['cylinder']}},
@@ -16476,8 +17159,8 @@ var Shape = {
 
     if (data.hasOwnProperty('offset')) {
       offset = new CANNON.Vec3(
-        data.offset.x * scale.x, 
-        data.offset.y * scale.y, 
+        data.offset.x * scale.x,
+        data.offset.y * scale.y,
         data.offset.z * scale.z
       );
     }
@@ -16493,23 +17176,23 @@ var Shape = {
         break;
       case 'box':
         var halfExtents = new CANNON.Vec3(
-          data.halfExtents.x * scale.x, 
-          data.halfExtents.y * scale.y, 
+          data.halfExtents.x * scale.x,
+          data.halfExtents.y * scale.y,
           data.halfExtents.z * scale.z
         );
         shape = new CANNON.Box(halfExtents);
         break;
       case 'cylinder':
         shape = new CANNON.Cylinder(
-          data.radiusTop * scale.x, 
-          data.radiusBottom * scale.x, 
-          data.height * scale.y, 
+          data.radiusTop * scale.x,
+          data.radiusBottom * scale.x,
+          data.height * scale.y,
           data.numSegments
         );
 
         //rotate by 90 degrees similar to mesh2shape:createCylinderShape
         var quat = new CANNON.Quaternion();
-        quat.setFromEuler(90 * THREE.Math.DEG2RAD, 0, 0, 'XYZ').normalize();
+        quat.setFromEuler(90 * THREE.MathUtils.DEG2RAD, 0, 0, 'XYZ').normalize();
         orientation.mult(quat, orientation);
         break;
       default:

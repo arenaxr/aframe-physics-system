@@ -11,7 +11,7 @@ var Shape = {
 
     // box
     halfExtents: {type: 'vec3', default: {x: 0.5, y: 0.5, z: 0.5}, if: {shape: ['box']}},
-    
+
     // cylinder
     radiusTop: {type: 'number', default: 1, if: {shape: ['cylinder']}},
     radiusBottom: {type: 'number', default: 1, if: {shape: ['cylinder']}},
@@ -50,8 +50,8 @@ var Shape = {
 
     if (data.hasOwnProperty('offset')) {
       offset = new CANNON.Vec3(
-        data.offset.x * scale.x, 
-        data.offset.y * scale.y, 
+        data.offset.x * scale.x,
+        data.offset.y * scale.y,
         data.offset.z * scale.z
       );
     }
@@ -67,23 +67,23 @@ var Shape = {
         break;
       case 'box':
         var halfExtents = new CANNON.Vec3(
-          data.halfExtents.x * scale.x, 
-          data.halfExtents.y * scale.y, 
+          data.halfExtents.x * scale.x,
+          data.halfExtents.y * scale.y,
           data.halfExtents.z * scale.z
         );
         shape = new CANNON.Box(halfExtents);
         break;
       case 'cylinder':
         shape = new CANNON.Cylinder(
-          data.radiusTop * scale.x, 
-          data.radiusBottom * scale.x, 
-          data.height * scale.y, 
+          data.radiusTop * scale.x,
+          data.radiusBottom * scale.x,
+          data.height * scale.y,
           data.numSegments
         );
 
         //rotate by 90 degrees similar to mesh2shape:createCylinderShape
         var quat = new CANNON.Quaternion();
-        quat.setFromEuler(90 * THREE.Math.DEG2RAD, 0, 0, 'XYZ').normalize();
+        quat.setFromEuler(90 * THREE.MathUtils.DEG2RAD, 0, 0, 'XYZ').normalize();
         orientation.mult(quat, orientation);
         break;
       default:
